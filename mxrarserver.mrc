@@ -2943,11 +2943,6 @@ alias mx.dcconf {
 }
 
 on *:LOAD:{
-  if (%mx.update.reload == 1) {
-    set %mx.started 1
-    .timerMXUPDATELOADED -m 0 1000 mx.update.loaded
-    return
-  }
   if ($version < 7.0) {
     echo -a 04Error: mx.rarserver requires mIRC 7.0 or higher.
     .unload -rs $script
@@ -9015,11 +9010,20 @@ alias -l mx.update.apply {
   var %script = %mx.update.script
   var %new = %mx.update.new
   var %backup = $+(%script,.v,$replace(%mx.version,.,),.bak)
-  if ((!$isfile(%script)) || (!$isfile(%new))) { mx.update.fail Update installation files are missing. | return }
+  if ((!$isfile(%script)) || (!$isfile(%new))) {
+    mx.update.fail Update installation files are missing.
+    return
+  }
   if ($isfile(%backup)) .remove $qt(%backup)
-  if ($exists(%backup)) { mx.update.fail Unable to replace the previous update backup. | return }
+  if ($exists(%backup)) {
+    mx.update.fail Unable to replace the previous update backup.
+    return
+  }
   .rename $qt(%script) $qt(%backup)
-  if ($isfile(%script)) { mx.update.fail Unable to create the update backup. | return }
+  if ($isfile(%script)) {
+    mx.update.fail Unable to create the update backup.
+    return
+  }
   .rename $qt(%new) $qt(%script)
   if ((!$isfile(%script)) || ($isfile(%new))) {
     if ($isfile(%script)) .remove $qt(%script)
@@ -9039,17 +9043,9 @@ alias -l mx.update.apply {
   set %mx.update.reload 1
   set %mx.update.running 1
   unset %mx.update.available
+  .timerMXUPDATELOADED -m 1 1500 mx.update.loaded
   .reload -rs $qt(%script)
   halt
-  :error
-  reseterror
-  if ($isfile(%backup)) {
-    if ($isfile(%script)) .remove $qt(%script)
-    .rename $qt(%backup) $qt(%script)
-  }
-  unset %mx.update.reload
-  unset %mx.update.running
-  mx.update.fail Unable to reload the updated script. Previous version restored.
 }
 
 alias mx.update.loaded {
