@@ -4953,7 +4953,7 @@ alias -l mx.rar.make.name {
 ctcp *:VERSION:*:{
   if (%mx.ctcp.version.lock) return
   set -u6 %mx.ctcp.version.lock 1
-  .ctcpreply $nick VERSION $+($chr(91),$chr(32),mx.rarserver,$chr(32),v,%mx.version,$chr(32),$chr(93),$chr(32),Unified Files + Folders Sharing Server • https://github.com/mxbiteck/mx.rarserver)
+  .ctcpreply $nick VERSION $+($chr(91),$chr(32),mx.rarserver,$chr(32),v,%mx.version,$chr(32),$chr(93),$chr(32),Unified Files + Folders Sharing Server • https://github.com/mxbiteck/mxrarserver)
 }
 
 alias mx.stats.init {
