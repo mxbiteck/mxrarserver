@@ -112,7 +112,7 @@
 ;+ Fixed mxbsk.dll 
 
 dialog mx.rarserver {
-  title "mx.rarserver v2.1.3 - Files and Folders Configuration"
+  title "mx.rarserver v2.1.4 - Files and Folders Configuration"
   size -1 -1 330 190
   option dbu
 
@@ -366,7 +366,7 @@ dialog mx.rarserver {
   text "0", 930, 282 136 8 8, right
   text "0 B", 931, 293 136 26 8, right
 
-  text "mx.rarserver v2.1.3 - Stage 2", 707, 8 177 160 8
+  text "mx.rarserver v2.1.4 - Stage 2", 707, 8 177 160 8
   text "", 709, 170 177 115 8, right
   button "Close", 109, 289 174 34 12, cancel
 }
@@ -2945,7 +2945,7 @@ alias mx.dcconf {
 on *:LOAD:{
   if (%mx.update.reload == 1) {
     set %mx.started 1
-    .timerMXUPDATELOADED -m 1 100 mx.update.loaded
+    mx.update.loaded
     return
   }
   if ($version < 7.0) {
