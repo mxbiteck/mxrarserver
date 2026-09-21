@@ -7750,29 +7750,7 @@ alias mx.start {
   if ((%mx.enabled == 1) && ($isfile(%mx.find.request.queue)) && ($read(%mx.find.request.queue,n,1))) {
     .timermxfindrequest -m 1 100 mx.find.request.process
   }
-  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Nick Trigger: $+ $chr(3) $+ 09  $iif(%mx.trigger,%mx.trigger,no definido) %mx.nc
-  var %db = %mx.database, %i = 1, %n = 0, %pl, %lists, %share, %j, %p, %c, %net
-  while ($isfile(%db) && $read(%db,n,%i)) {
-    %pl = $strip($gettok($ifmatch,1,124))
-    if (%pl) { inc %n | %lists = $addtok(%lists,%pl,44) }
-    inc %i
-  }
-  %j = 1
-  while (%j <= $numtok(%mx.chans,44)) {
-    %p = $gettok(%mx.chans,%j,44)
-    %c = $gettok(%p,1,58)
-    %net = $gettok(%p,2,58)
-    %share = $addtok(%share,%c $+ @ $+ %net,44)
-    inc %j
-  }
-  if (!%lists) %lists = no lists
-  else %lists = $replace(%lists,$chr(44),$chr(44) $chr(32))
-  if (!%share) %share = no channels assigned
-  else %share = $replace(%share,$chr(44),$chr(44) $chr(32))
-  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s) loaded: $+ $chr(3) $+ 09 %n %mx.nc
-  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s): $+ $chr(3) $+ 09 %lists %mx.nc
-  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Sharing: $+ $chr(3) $+ 09 %share %mx.nc
-  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Version: $+ $chr(3) $+ 09 %mx.version %mx.nc
+  echo -s $mx.logo $+ %mx.c1 $+ Files & Folders Sharing: $+ %mx.c2 $iif(%mx.enabled == 1,ON,OFF) $+ $chr(3) $+ %mx.c3  / %mx.c1 $+ Trigger: $+ $chr(3) $+ %mx.c2 $iif(%mx.trigger,%mx.trigger,Not defined) %mx.nc
   if (%mx.update.enabled == 1) {
     .timerMXUPDATEFIRST -io 1 10 mx.update.check auto
     .timerMXUPDATEAUTO -io 0 %mx.update.interval mx.update.check auto
@@ -9043,7 +9021,7 @@ alias -l mx.update.apply {
   set %mx.update.reload 1
   set %mx.update.running 1
   unset %mx.update.available
-  .timerMXUPDATELOADED -m 1 1500 mx.update.loaded
+  .timerMXUPDATELOADED -m 1 2500 mx.update.loaded
   .reload -rs $qt(%script)
   halt
 }
@@ -9110,7 +9088,8 @@ alias -l mx.update.ui {
 }
 
 alias -l mx.update.status {
-  echo -s $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),[MX.UPDATE],$chr(32),$1-)
+  echo -s $+(%mx.c3,$chr(32),$chr(91),%mx.c2,$chr(32),Update,$chr(32),%mx.c3,$chr(93),$chr(32),%mx.c1,$1-,$chr(32),%mx.nc)
+  ;  echo -s $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),[MX.UPDATE],$chr(32),$1-)
   if ($dialog(mx.rarserver)) did -ra mx.rarserver 709 $1-
   mx.dbg %mx.c2 [MX.UPDATE] %mx.c1 $+ $1- %mx.nc
 }
