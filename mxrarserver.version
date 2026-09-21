@@ -1,1 +1,1 @@
-mxrarserver|2.1.3|7.78|326176|895cbd7b881bdbefde80a02a1bac7f7ed389250f09faf0ffdbfe1d2be88ecb17|https://raw.githubusercontent.com/mxbiteck/mxrarserver/v2.1.3/mxrarserver.mrc|Improved requests, searches, list protection, DCX interface and DCC monitoring.
+mxrarserver|2.1.4|7.78|322253|882212ca6796c6b3dee5af5bfbdbeb84ce470ec442b41ef406228fce5208f7b3|https://raw.githubusercontent.com/mxbiteck/mx.rarserver/v2.1.4/mxrarserver.mrc|Improved search performance, duplicate find protection, buffered output and CTCP VERSION response.
