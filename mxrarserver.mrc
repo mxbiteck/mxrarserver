@@ -1,18 +1,28 @@
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; mx.rarserver
-; Version: 2.1.3
+; Version: 2.1.4
 ; Developed by Bsk (Undernet)
 ; Release date: 2026-04-28
-; Last update: 2026-09-18
+; Last update: 2026-09-20
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; Features: RAR Timeout, Multi-Network Support, Theme and Colors, DCC Transfer Monitor
 ; Smart Folder Naming, Queue Protection, Startup Cleanup, Worker Cleanup, Window Manager.
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+;+ mxrarserver v2.1.4
+;+ Optimized mxfinder.dll index handling for smoother searches and lower repeated processing.
+;+ Fixed duplicate @find and @locator requests by applying the per-nick cooldown before queue insertion.
+;+ Routed list-request confirmations through the dedicated buffered search output queue.
+;+ Changed the default number of displayed search results to three while preserving the selectable 1–8 range.
+;+ Added a branded CTCP VERSION response with the project description and official GitHub address.
+;+ Cleaned temporary diagnostic output used during DLL performance testing.
+
 ;+ mxrarserver v2.1.3
 ;+ Improved channel and private-message request handling while preserving per-channel list assignments.
 ;+ Added buffered file lookup processing to prevent freezes during multiple simultaneous file requests.
-;+ Updated Files, @find and @locator searches to require and validate mxfinder.dll v1.10 Win32.
+;+ Updated Files, @find and @locator searches to require and validate mxfinder.dll v1.12 Win32.
+;+ Added a shared @find/@locator queue, a five-second per-nick cooldown and asynchronous FindPack processing.
+;+ Added persistent compact search indexing, a 25-query LRU cache and independent one-second result output.
 ;+ Added separate buffered output processing for @find, @locator, stats and transfer-status responses.
 ;+ Improved @find and @locator results for assigned Files, Folders and combined list configurations.
 ;+ Added on-demand Complete list generation with priority queue insertion for Files + Folders assignments.
@@ -126,7 +136,7 @@ dialog mx.rarserver {
 
   box "Trigger", 856, 81 126 116 22
   text "Nickname", 181, 88 136 28 8
-  edit "", 182, 119 133 42 11, center autohs
+  edit "", 182, 119 134 42 11, center autohs
 
   box "Limits / Timing", 130, 201 22 123 126
   text "Requests per Nick", 126, 207 33 73 8
@@ -155,7 +165,7 @@ dialog mx.rarserver {
   scroll "", 999, 307 130 9 11, range 5 31 pos 5 page 1
   box "Events", 176, 81 151 61 19
   text "Select", 174, 86 159 18 8
-  combo 173, 108 157 28 42, drop
+  combo 173, 108 158 28 42, drop
 
   box "Actions", 177, 164 151 160 19
   button "Monitor", 116, 169 157 29 10
@@ -245,8 +255,8 @@ dialog mx.rarserver {
   button "Move down", 308, 284 154 37 11
 
   box "Theme selection", 800, 81 22 87 22
-  text "Theme", 801, 86 32 24 8
-  combo 110, 105 30 57 52, drop
+  text "Theme", 801, 86 32 18 8
+  combo 110, 105 31 57 52, drop
   box "No color", 812, 215 22 39 22
   check "Events", 108, 219 31 30 8
   box "No color", 813, 172 22 39 22
@@ -263,9 +273,9 @@ dialog mx.rarserver {
   box "Info / notice preview", 806, 81 106 243 20
   box "Advertisement text", 807, 81 128 243 39
   text "Start text", 808, 87 139 36 8
-  edit "", 809, 125 137 193 10, autohs limit 100
+  edit "", 809, 125 138 193 10, autohs limit 100
   text "End text", 810, 87 152 36 8
-  edit "", 811, 125 150 193 10, autohs limit 100
+  edit "", 811, 125 151 193 10, autohs limit 100
   button "Apply", 804, 262 30 28 10
   button "Reset", 805, 292 30 28 10
 
@@ -334,21 +344,21 @@ dialog mx.rarserver {
   text "0 B", 632, 208 152 30 8, right
   text "Success rate", 658, 170 163 38 8
   text "0%", 659, 208 163 30 8, right
-  box "Files sent", 911, 246 59 78 29
+  box "Files", 911, 246 59 78 29
   text "Today", 912, 251 67 29 8
   text "0", 916, 282 67 8 8, right
   text "0 B", 913, 293 67 26 8, right
   text "Yesterday", 914, 251 78 29 8
   text "0", 917, 282 78 8 8, right
   text "0 B", 915, 293 78 26 8, right
-  box "Folders sent", 918, 246 88 78 29
+  box "Folders", 918, 246 88 78 29
   text "Today", 919, 251 96 29 8
   text "0", 920, 282 96 8 8, right
   text "0 B", 921, 293 96 26 8, right
   text "Yesterday", 922, 251 107 29 8
   text "0", 923, 282 107 8 8, right
   text "0 B", 924, 293 107 26 8, right
-  box "Total sent", 925, 246 117 78 29
+  box "Total", 925, 246 117 78 29
   text "Today", 926, 251 125 29 8
   text "0", 927, 282 125 8 8, right
   text "0 B", 928, 293 125 26 8, right
@@ -2009,13 +2019,28 @@ alias mx.files.index.preload {
     return
   }
   var %version = $dll($qt(%mx.finder.dll),Version,0)
-  if (*1.10* !iswm %version) {
-    mx.dlist %mx.c2 Error: $+ %mx.c1 This script requires mxfinder.dll 1.10 Win32. Replace the loaded DLL and restart mIRC. %mx.nc
+  if (*1.12* !iswm %version) {
+    mx.dlist %mx.c2 Error: $+ %mx.c1 This script requires mxfinder.dll 1.12 Win32. Replace the loaded DLL and restart mIRC. %mx.nc
     return
   }
   var %params = $+(__mx_preload__,$chr(124),%mx.files.masterlist)
   var %ticks = $ticks
   var %res = $dll($qt(%mx.finder.dll),LookupExact,%params)
+  .timermx_findpack_preload -m 1 1000 mx.find.index.preload
+}
+
+alias mx.find.index.preload {
+  if ((!$isfile(%mx.finder.dll)) || (!$isfile(%mx.files.masterlist))) return
+  var %params = $+(files,$chr(124),%mx.files.masterlist)
+  var %res = $dll($qt(%mx.finder.dll),PreloadFind,%params)
+  var %status = $gettok(%res,1,124)
+  if (%status == WAIT) {
+    .timermx_findpack_preload -m 1 1000 mx.find.index.preload
+    return
+  }
+  if (%status == ERR) {
+    mx.dlist %mx.c2 Error: $+ %mx.c1 Find index preload failed: %mx.c2 $gettok(%res,2-,124) %mx.nc
+  }
 }
 
 alias mx.files.lookup.status {
@@ -2777,11 +2802,12 @@ alias mx.bytes {
 }
 
 alias mx.cfg.vars.defaults {
-  set %mx.version 2.1.3
+  set %mx.version 2.1.4
   if (%mx.update.enabled == $null) set %mx.update.enabled 1
   if (%mx.update.interval == $null) set %mx.update.interval 86400
   if (%mx.update.manifest == $null) set %mx.update.manifest https://raw.githubusercontent.com/mxbiteck/mxrarserver/main/mxrarserver.version
-  if (%mx.out.delay == $null) set %mx.out.delay 8000
+  if (%mx.out.delay == $null) set %mx.out.delay 7000
+  if (%mx.find.out.delay == $null) set %mx.find.out.delay 3000
   if (%mx.trigger == $null) set %mx.trigger $me
   if (%mx.enabled == $null) set %mx.enabled 0
   if (%mx.join == $null) set %mx.join 1
@@ -2791,7 +2817,7 @@ alias mx.cfg.vars.defaults {
   if (%mx.slots == $null) set %mx.slots 0
   if (%mx.maxsend == $null) set %mx.maxsend 3
   if (%mx.maxrequest == $null) set %mx.maxrequest 10
-  if (%mx.maxpernick == $null) set %mx.maxpernick 2
+  if (%mx.maxpernick == $null) set %mx.maxpernick 1
   if (%mx.maxfind == $null) set %mx.maxfind 3
   if (%mx.sendinterval == $null) set %mx.sendinterval 3
   if (%mx.adstime == $null) set %mx.adstime 300
@@ -2852,8 +2878,11 @@ alias mx.cfg.vars.defaults {
   if (%mx.queue == $null) set %mx.queue %mx.scriptdir $+ mxqueue.txt
   if (%mx.inqueue == $null) set %mx.inqueue %mx.scriptdir $+ mxqueuein.txt
   if (%mx.files.lookup.queue == $null) set %mx.files.lookup.queue %mx.scriptdir $+ mxfileslookup.txt
+  if (%mx.find.request.queue == $null) set %mx.find.request.queue %mx.scriptdir $+ mxfindrequests.txt
   if (%mx.out.queue == $null) set %mx.out.queue %mx.scriptdir $+ mxqueueout.txt
   if (%mx.find.queue == $null) set %mx.find.queue %mx.scriptdir $+ mxfindqueueout.txt
+  if (%mx.find.cooldown == $null) set %mx.find.cooldown 5
+  if (%mx.find.interval == $null) set %mx.find.interval 250
   if (%mx.dll == $null) set %mx.dll %mx.scriptdir $+ mxbsk.dll
   if (%mx.finder.dll == $null) set %mx.finder.dll %mx.scriptdir $+ dll\mxfinder.dll
   if (%mx.rarworker == $null) set %mx.rarworker %mx.scriptdir $+ mxrar.exe
@@ -2888,7 +2917,6 @@ alias mx.cfg.vars.defaults {
   if (%mx.nc == $null) set %mx.nc 
   if (%mx.cr == $null) set %mx.cr ■
   if (%mx.theme == $null) set %mx.theme MX Classic
-  if (%mx.logo == $null) set %mx.logo 4,2 [9 mx.rarserver 4,2] 
   if (%mx.nocolor == $null) set %mx.nocolor 0
   if (%mx.ad.nocolor == $null) set %mx.ad.nocolor 0
 }
@@ -2940,6 +2968,7 @@ on *:UNLOAD:{
   .timerTDBG off
   .timerTDCC off
   .timerUSLOTS off
+  unset %mx.find.cooldown.nick.*
   if ($dialog(mx.rarserver)) dialog -x mx.rarserver
   if ($dialog(mx.workdir)) dialog -x mx.workdir
   if ($dialog(mx.addchan)) dialog -x mx.addchan
@@ -3093,6 +3122,7 @@ alias mx.restart {
   .timerTDCC off
   .timerUSLOTS off
   unset %mx.trigger.cooldown.*
+  unset %mx.find.cooldown.nick.*
   unset %mx.queue.lock
   unset %mx.queue.lockts
   mx.bootstrap
@@ -3103,6 +3133,9 @@ alias mx.restart {
   }
   if ((%mx.enabled == 1) && ($isfile(%mx.files.lookup.queue)) && ($read(%mx.files.lookup.queue,n,1))) {
     .timermxfileslookup -m 1 100 mx.files.lookup.process
+  }
+  if ((%mx.enabled == 1) && ($isfile(%mx.find.request.queue)) && ($read(%mx.find.request.queue,n,1))) {
+    .timermxfindrequest -m 1 100 mx.find.request.process
   }
   if ($send(0) > 0) {
     mx.speed.start
@@ -3118,7 +3151,7 @@ alias mx.restart {
     mx.compress.close
   }
   mx.title.refresh
-  echo -a $+(%mx.logo,%mx.c1,System restarted,$chr(32),%mx.nc)
+  echo -a $+($mx.logo,%mx.c1,System restarted,$chr(32),%mx.nc)
 }
 
 alias mx.bootstrap {
@@ -3158,6 +3191,7 @@ alias mx.bootstrap {
   }
   if (!$isfile(%mx.inqueue)) write -c %mx.inqueue
   if (!$isfile(%mx.files.lookup.queue)) write -c $qt(%mx.files.lookup.queue)
+  if (!$isfile(%mx.find.request.queue)) write -c $qt(%mx.find.request.queue)
   mx.in.legacy.lookup.clean
   if (!$isfile(%mx.out.queue)) write -c %mx.out.queue
   if (!$isfile(%mx.find.queue)) write -c %mx.find.queue
@@ -3243,6 +3277,9 @@ alias mx.hardreset {
   if ((%mx.files.lookup.queue) && ($isfile(%mx.files.lookup.queue))) {
     .remove $qt(%mx.files.lookup.queue)
   }
+  if ((%mx.find.request.queue) && ($isfile(%mx.find.request.queue))) {
+    .remove $qt(%mx.find.request.queue)
+  }
   if ((%mx.out.queue) && ($isfile(%mx.out.queue))) {
     .remove $qt(%mx.out.queue)
   }
@@ -3308,7 +3345,7 @@ alias mx.hardreset {
   if (!$dialog(mx.rarserver)) {
     .timerMXHR 1 3 dialog -m mx.rarserver mx.rarserver
   }
-  echo -a $+(%mx.logo,%mx.c1,Hard reset completed,$chr(32),%mx.nc)
+  echo -a $+($mx.logo,%mx.c1 Hard reset completed,$chr(32),%mx.nc)
 }
 
 alias dmx.queue.clear {
@@ -3496,9 +3533,9 @@ alias mx.files.lookup.process {
   var %list = $gettok(%line,5,9)
   var %key = $gettok(%line,6-,9)
   var %version = $dll($qt(%mx.finder.dll),Version,0)
-  if (*1.10* !iswm %version) {
+  if (*1.12* !iswm %version) {
     var %cid = $mx.net2cid(%net)
-    if ((%cid) && (%mode != ctcp)) mx.out.send notice %cid %nick %mx.c2 Error: %mx.c1 Files lookup requires mxfinder.dll 1.10 Win32. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+    if ((%cid) && (%mode != ctcp)) mx.out.send notice %cid %nick %mx.c2 Error: %mx.c1 Files lookup requires mxfinder.dll 1.12 Win32. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
     if ($read(%mx.files.lookup.queue,n,1)) .timermxfileslookup -m 1 100 mx.files.lookup.process
     return
   }
@@ -3507,6 +3544,9 @@ alias mx.files.lookup.process {
     write -il 1 $qt(%mx.files.lookup.queue) %line
     .timermxfileslookup -m 1 1000 mx.files.lookup.process
     return
+  }
+  if (%mx.lookup.laststatus == ERR) {
+    mx.dlist [LOOKUP] File lookup failed - Nick: %nick - Network: %net - Error: %mx.lookup.lasterror - Request: %key
   }
   var %cid = $mx.net2cid(%net)
   if ($isfile(%path)) {
@@ -3696,7 +3736,7 @@ alias -l mx.complete.enqueue {
   }
   var %existing = $dmx.queue.exists(%nick,%net,%job)
   if (%existing) {
-    if (%mode != ctcp) mx.out.send notice %cid %nick %mx.c1 This Complete list request is already pending in position: %mx.c2 $+ %existing %mx.c3 $+ %mx.cr $+ $mx.logo
+    if (%mode != ctcp) mx.find.out.send notice %cid %nick %mx.c1 This Complete list request is already pending in position: %mx.c2 $+ %existing %mx.c3 $+ %mx.cr $+ $mx.logo
     return 0
   }
   if ((%mx.maxrequest isnum) && (%mx.maxrequest > 0)) {
@@ -3715,7 +3755,7 @@ alias -l mx.complete.enqueue {
     return 0
   }
   var %allowed = $dmx.queue.countnick(%nick,%net)
-  if (%mode != ctcp) mx.out.send notice %cid %nick %mx.c1 Complete list request accepted: $+ %mx.c2 Files + Folders %mx.c3 $+ %mx.cr $+ %mx.c1 Queue Position: %mx.c2 $+ %position %mx.c3 $+ %mx.cr $+ %mx.c1 The list will be prepared and sent automatically. %mx.c3 $+ %mx.cr $+ $mx.logo
+  if (%mode != ctcp) mx.find.out.send notice %cid %nick %mx.c1 Complete list request accepted: $+ %mx.c2 Files + Folders %mx.c3 $+ %mx.cr $+ %mx.c1 Queue Position: %mx.c2 $+ %position %mx.c3 $+ %mx.cr $+ %mx.c1 The list will be prepared and sent automatically. %mx.c3 $+ %mx.cr $+ $mx.logo
   if ($timer(MXRARQ).state != on) dmx.queue.start.now
   inc %mx.rlists
   mx.main.stats.refresh
@@ -4031,7 +4071,7 @@ on *:TEXT:@*:*:{
   }
   if (($lower($1) == @find) || ($lower($1) == @locator)) {
     if ((%mx.find.enabled == 1) && ($0 > 1) && (%mode != ctcp)) {
-      mx.find.request $nick %requestchan $network $2-
+      if ($mx.find.cooldown.allow($nick,$network)) mx.find.request $nick %requestchan $network $2-
     }
     return
   }
@@ -4094,7 +4134,7 @@ on *:TEXT:@*:*:{
   if (!%position) return
   var %listtype = $iif((%files != -) && (%folders == -),Files,Folders)
   if (%mode != ctcp) {
-    mx.out.send notice %cidR $nick %mx.c1 List Request Accepted: $+ %mx.c2 %listtype %mx.c3 $+ %mx.cr $+ %mx.c1 Queue Position: $+ %mx.c2 %position %mx.c3 $+ %mx.cr $+ $mx.logo
+    mx.find.out.send notice %cidR $nick %mx.c1 List Request Accepted: $+ %mx.c2 %listtype %mx.c3 $+ %mx.cr $+ %mx.c1 Queue Position: $+ %mx.c2 %position %mx.c3 $+ %mx.cr $+ $mx.logo
   }
   if ($timer(MXRARQ).state != on) dmx.queue.start.now
   inc %mx.rlists
@@ -4117,6 +4157,18 @@ alias -l mx.publiclist.pick {
     if (!%file) %file = $findfile(%mx.plbase,* $+ %folders $+ *-MX.rar,1)
   }
   if ($isfile(%file)) return %file
+}
+
+alias -l mx.find.cooldown.allow {
+  var %nick = $lower($strip($1))
+  var %net = $lower($strip($2))
+  if ((!%nick) || (!%net)) return 0
+  var %seconds = $iif(%mx.find.cooldown isnum 1-60,%mx.find.cooldown,5)
+  var %hash = $md5($+(%net,$chr(124),%nick))
+  var %last = $eval($+(%,mx.find.cooldown.nick.,%hash),2)
+  if ((%last isnum) && ($calc($ctime - %last) < %seconds)) return 0
+  set $+(%,mx.find.cooldown.nick.,%hash) $ctime
+  return 1
 }
 
 alias mx.find.request {
@@ -4147,20 +4199,64 @@ alias mx.find.request {
     mx.find.out.send msg %cid %nick %mx.c2 $+ Error: $+ %mx.c1 Finder DLL not found: $+ %mx.c2 %mx.finder.dll %mx.c3 $+ %mx.cr $+ $mx.logo
     return
   }
-  var %max = $iif(%mx.maxfind isnum 1-8,%mx.maxfind,8)
-  var %listcmd = @ $+ %mx.trigger
-  var %done = 0
-  if ((%files) && (%files != -) && (%mx.files.list == 1)) {
-    mx.find.request.run files %nick %chan %net %cid %files %mx.files.masterlist %term
-    set %done 1
+  var %version = $dll($qt(%mx.finder.dll),Version,0)
+  if (*1.12* !iswm %version) {
+    mx.find.out.send msg %cid %nick %mx.c2 $+ Error: $+ %mx.c1 Search requires mxfinder.dll 1.12 Win32. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+    return
   }
-  if ((%folders) && (%folders != -) && (%mx.list == 1)) {
-    mx.find.request.run folders %nick %chan %net %cid %folders %mx.masterlist %term
-    set %done 1
-  }
-  if (%done != 1) {
+  var %hasfiles = $iif((%files) && (%files != -) && (%mx.files.list == 1),1,0)
+  var %hasfolders = $iif((%folders) && (%folders != -) && (%mx.list == 1),1,0)
+  if ((!%hasfiles) && (!%hasfolders)) {
     mx.find.out.send msg %cid %nick %mx.c2 $+ Error: $+ %mx.c1 Search list not available for this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
+    return
   }
+  %term = $replace(%term,$chr(9),$chr(32),$chr(29),$chr(32))
+  var %stage = $iif(%hasfiles,files,folders)
+  var %id = $+($ticks,.,$rand(1000,9999))
+  var %line = $+(%id,$chr(9),%nick,$chr(9),%chan,$chr(9),%net,$chr(9),%files,$chr(9),%folders,$chr(9),%stage,$chr(9),%term)
+  write $qt(%mx.find.request.queue) %line
+  if (!$timer(mxfindrequest)) .timermxfindrequest -m 1 50 mx.find.request.process
+}
+
+alias mx.find.request.process {
+  if (%mx.enabled != 1) return
+  if (!$isfile(%mx.find.request.queue)) return
+  var %line = $read(%mx.find.request.queue,n,1)
+  if (!%line) return
+  var %nick = $gettok(%line,2,9)
+  var %chan = $gettok(%line,3,9)
+  var %net = $gettok(%line,4,9)
+  var %files = $gettok(%line,5,9)
+  var %folders = $gettok(%line,6,9)
+  var %stage = $lower($gettok(%line,7,9))
+  var %term = $gettok(%line,8-,9)
+  var %cid = $mx.net2cid(%net)
+  if ((!%nick) || (!%chan) || (!%net) || (!%cid) || (!%term)) {
+    write -dl 1 $qt(%mx.find.request.queue)
+    if ($read(%mx.find.request.queue,n,1)) .timermxfindrequest -m 1 %mx.find.interval mx.find.request.process
+    return
+  }
+  if (%stage == files) {
+    var %status = $mx.find.request.run(files,%nick,%chan,%net,%cid,%files,%mx.files.masterlist,%term)
+  }
+  elseif (%stage == folders) {
+    var %status = $mx.find.request.run(folders,%nick,%chan,%net,%cid,%folders,%mx.masterlist,%term)
+  }
+  else {
+    var %status = DONE
+  }
+  if (%status == WAIT) {
+    .timermxfindrequest -m 1 %mx.find.interval mx.find.request.process
+    return
+  }
+  if ((%stage == files) && (%folders) && (%folders != -) && (%mx.list == 1)) {
+    var %next = $puttok(%line,folders,7,9)
+    write -l1 $qt(%mx.find.request.queue) %next
+    .timermxfindrequest -m 1 %mx.find.interval mx.find.request.process
+    return
+  }
+  write -dl 1 $qt(%mx.find.request.queue)
+  if ($read(%mx.find.request.queue,n,1)) .timermxfindrequest -m 1 %mx.find.interval mx.find.request.process
 }
 
 alias -l mx.find.request.run {
@@ -4175,30 +4271,31 @@ alias -l mx.find.request.run {
   var %showmax = $iif(%mx.maxfind isnum 1-8,%mx.maxfind,8)
   var %fetchmax = 8
   var %label = $iif(%type == files,File(s),Folder(s))
-  if ((!%type) || (!%nick) || (!%chan) || (!%net) || (!%cid) || (!%list) || (%list == -) || (!%term)) return
+  if ((!%type) || (!%nick) || (!%chan) || (!%net) || (!%cid) || (!%list) || (%list == -) || (!%term)) return DONE
   if (!$isfile(%master)) {
     mx.find.out.send msg %cid %nick %mx.c2 $+ Error: $+ %mx.c1 %label masterlist not found. %mx.c3 $+ %mx.cr $+ $mx.logo
-    return
+    return DONE
   }
   var %params = %term $+ $chr(124) $+ %master $+ $chr(124) $+ %fetchmax $+ $chr(124) $+ %type
   var %t = $ticks
   var %res = $dll($qt(%mx.finder.dll),FindPack,%params)
   var %ms = $calc($ticks - %t)
-  if ($gettok(%res,1,124) == NO) return
+  if ($gettok(%res,1,124) == WAIT) return WAIT
+  if ($gettok(%res,1,124) == NO) return DONE
   if ($gettok(%res,1,124) == ERR) {
     var %err = $gettok(%res,2-,124)
-    if (%err == empty_tokens) return
+    if (%err == empty_tokens) return DONE
     mx.find.out.send msg %cid %nick %mx.c2 $+ Error: $+ %mx.c1 Finder error: $+ %mx.c2 %err %mx.c3 $+ %mx.cr $+ $mx.logo
-    return
+    return DONE
   }
-  if ($gettok(%res,1,124) != OK) return
+  if ($gettok(%res,1,124) != OK) return DONE
   var %total = $gettok(%res,2,124)
   var %count = $gettok(%res,3,124)
   var %data = $gettok(%res,4-,124)
-  if (%total !isnum) return
-  if (%total < 1) return
-  if (%count !isnum 1-8) return
-  if (!%data) return
+  if (%total !isnum) return DONE
+  if (%total < 1) return DONE
+  if (%count !isnum 1-8) return DONE
+  if (!%data) return DONE
   var %accepted
   var %seen
   var %shown = 0
@@ -4229,7 +4326,7 @@ alias -l mx.find.request.run {
     }
     inc %i
   }
-  if (%shown < 1) return
+  if (%shown < 1) return DONE
   if (%total > %shown) {
     mx.out.now msg %cid %nick %mx.c1 Search results: $+ %mx.c2 $bmx(%total) %label %mx.c1 $+ matches for $+ %mx.c2 %term $+ %mx.c3 %mx.cr $+ %mx.c1 Showing $+ %mx.c2 %shown %mx.c1 $+ result(s). Get my list by typing $+ %mx.c2 @ $+ %mx.trigger %mx.c1 $+ In The Channel. $+ %mx.c3 %mx.cr $+ $mx.logo %mx.nc
   }
@@ -4250,6 +4347,7 @@ alias -l mx.find.request.run {
     }
     inc %i
   }
+  return DONE
 }
 
 alias -l mx.trigger.match {
@@ -4815,7 +4913,8 @@ alias mx.find.out.flush {
 alias mx.find.out.start {
   .timermxfindout off
   if (%mx.enabled != 1) return
-  .timermxfindout -m 0 %mx.out.delay mx.find.out.flush
+  if (%mx.find.out.delay !isnum 500-5000) set %mx.find.out.delay 3000
+  .timermxfindout -m 0 %mx.find.out.delay mx.find.out.flush
 }
 
 alias -l mx.rar.make.name {
@@ -4851,7 +4950,11 @@ alias -l mx.rar.make.name {
   return %last
 }
 
-;ctcp *:VERSION: .ctcpreply $nick VERSION $+(%mx.logo,$chr(3),0,$chr(44),2,$chr(3),4,$chr(91),$chr(3),9,$chr(32),v,%mx.version,$chr(32),$chr(3),4,$chr(93),$chr(32),$chr(9632),$chr(32),$chr(3),15,created by,$chr(3),4,$chr(32),$chr(9632),$chr(32),$chr(91),$chr(3),9,$chr(32),Bsk,$chr(32),$chr(3),4,$chr(93),$chr(32),$chr(3))
+ctcp *:VERSION:*:{
+  if (%mx.ctcp.version.lock) return
+  set -u6 %mx.ctcp.version.lock 1
+  .ctcpreply $nick VERSION $+($chr(91),$chr(32),mx.rarserver,$chr(32),v,%mx.version,$chr(32),$chr(93),$chr(32),Unified Files + Folders Sharing Server • https://github.com/mxbiteck/mx.rarserver)
+}
 
 alias mx.stats.init {
   if (%mx.rarrequested == $null) set %mx.rarrequested 0
@@ -5233,7 +5336,7 @@ alias mx.status {
   var %filelists = $iif($isfile(%mx.files.plnames),$lines(%mx.files.plnames),0)
   var %folderlists = $iif($isfile(%mx.plnames),$lines(%mx.plnames),0)
   var %channels = $numtok(%mx.chans,44)
-  mx.dlist %mx.logo
+  mx.dlist $mx.logo
   mx.dlist %mx.c1 State: %mx.c2 $+ %state %mx.c1 - Activity: %mx.c2 $+ %activity %mx.nc
   mx.dlist %mx.c1 Compression: %mx.c2 $+ %compression %mx.nc
   mx.dlist %mx.c1 Files service: %mx.c2 $+ %files %mx.c1 - Lists: %mx.c2 $+ %filelists %mx.c1 - Build: %mx.c2 $+ %filesbuild %mx.nc
@@ -6033,7 +6136,7 @@ alias mx.ad.echo.toggle {
   mx.dbg %mx.c1 Show own ads locally: %mx.c2 $+ $iif(%mx.ad.echo == 1,ON,OFF) %mx.nc
 }
 
-alias mx.logo return $+(%mx.c3,$chr(32),[,$chr(32),%mx.c2,mx.rarserver,$chr(32),v,%mx.version,%mx.c3,$chr(32),$chr(93),$chr(32),%mx.nc)
+alias -l mx.logo return $+(%mx.c3,$chr(32),[,$chr(32),%mx.c2,mx.rarserver,$chr(32),v,%mx.version,%mx.c3,$chr(32),$chr(93),$chr(32),%mx.nc)
 
 alias mx.msg.adx {
   if (%mx.enabled != 1) return
@@ -6607,12 +6710,12 @@ alias -l mx.sendfail.track {
   if (%fails !isnum) var %fails = 0
   inc %fails
   set $+($chr(37),mx.sendfail.count.,%id) %fails
-  mx.dbg %mx.c2 [warn] %mx.c1 DCC send failure for: %mx.c2 %nick %mx.c1 Network: %mx.c2 %net %mx.c1 Failures: %mx.c2 %fails $+ /2 %mx.nc
+  mx.dbg %mx.c1 Nick no longer in shared channels: $+ %mx.c2 %nick %mx.c1 $+ Network: $+ %mx.c2 %net %mx.c1 $+ Failed sends: $+ %mx.c2 %fails $+ /2 %mx.nc
   if (%fails < 2) return
   unset %mx.sendfail.count. [ $+ [ %id ] ]
   set -u60 $+($chr(37),mx.sendfail.block.,%id) 1
   var %pending = $dmx.queue.countnick(%nick,%net)
-  mx.dbg %mx.c2 [warn] %mx.c1 Two failed sends detected. Removing pending requests for: %mx.c2 %nick %mx.c1 Network: %mx.c2 %net %mx.c1 Pending: %mx.c2 %pending %mx.nc
+  mx.dbg %mx.c1 Nick unavailable after two failed sends. Removing pending requests for: $+ %mx.c2 %nick %mx.c1 $+ Network: $+ %mx.c2 %net %mx.c1 $+ Pending: $+ %mx.c2 %pending %mx.nc
   if (%pending > 0) {
     mx.nick.remove %nick %net silent
   }
@@ -7442,10 +7545,10 @@ alias -l mx.monitor.title {
   var %s = $mx.monitor.send.active
   var %r = $mx.monitor.get.active
   var %speed = $iif(%mx.monitor.totalspeed,%mx.monitor.totalspeed,0 KB/s)
-  var %sep = $chr(32) $+ $chr(124) $+ $chr(32)
-  var %text = Queue: %q $+ %sep $+ Sends: %s $+ %sep $+ Receives: %r $+ %sep $+ Speed: %speed
+  var %sep = $chr(32) $+ $chr(45) $+ $chr(32)
+  var %text = Queue: %q %sep Sends: %s %sep Receives: %r %sep Speed: %speed
   did -ra mx.monitor 7 %text
-  dialog -t mx.monitor mx.rarserver - Transfer Monitor $chr(124) %text
+  dialog -t mx.monitor mx.rarserver - Transfer Monitor
 }
 
 alias mx.monitor.watch {
@@ -7648,7 +7751,10 @@ alias mx.start {
   if ((%mx.enabled == 1) && ($isfile(%mx.files.lookup.queue)) && ($read(%mx.files.lookup.queue,n,1))) {
     .timermxfileslookup -m 1 100 mx.files.lookup.process
   }
-  echo -s %mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Nick Trigger: $+ $chr(3) $+ 09  $iif(%mx.trigger,%mx.trigger,no definido) %mx.nc
+  if ((%mx.enabled == 1) && ($isfile(%mx.find.request.queue)) && ($read(%mx.find.request.queue,n,1))) {
+    .timermxfindrequest -m 1 100 mx.find.request.process
+  }
+  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Nick Trigger: $+ $chr(3) $+ 09  $iif(%mx.trigger,%mx.trigger,no definido) %mx.nc
   var %db = %mx.database, %i = 1, %n = 0, %pl, %lists, %share, %j, %p, %c, %net
   while ($isfile(%db) && $read(%db,n,%i)) {
     %pl = $strip($gettok($ifmatch,1,124))
@@ -7667,10 +7773,10 @@ alias mx.start {
   else %lists = $replace(%lists,$chr(44),$chr(44) $chr(32))
   if (!%share) %share = no channels assigned
   else %share = $replace(%share,$chr(44),$chr(44) $chr(32))
-  echo -s %mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s) loaded: $+ $chr(3) $+ 09 %n %mx.nc
-  echo -s %mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s): $+ $chr(3) $+ 09 %lists %mx.nc
-  echo -s %mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Sharing: $+ $chr(3) $+ 09 %share %mx.nc
-  echo -s %mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Version: $+ $chr(3) $+ 09 %mx.version %mx.nc
+  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s) loaded: $+ $chr(3) $+ 09 %n %mx.nc
+  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ List(s): $+ $chr(3) $+ 09 %lists %mx.nc
+  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Sharing: $+ $chr(3) $+ 09 %share %mx.nc
+  echo -s $mx.logo $+ $chr(3) $+ 04 $+ $chr(9632) $chr(3) $+ 15 $+ Version: $+ $chr(3) $+ 09 %mx.version %mx.nc
   if (%mx.update.enabled == 1) {
     .timerMXUPDATEFIRST -io 1 10 mx.update.check auto
     .timerMXUPDATEAUTO -io 0 %mx.update.interval mx.update.check auto
@@ -7733,12 +7839,12 @@ alias mx.apply.runtime {
   if (%mx.maxrequest !isnum) set %mx.maxrequest 3
   if (%mx.maxrequest < 1) set %mx.maxrequest 1
   if (%mx.maxrequest > 200) set %mx.maxrequest 200
-  if (%mx.maxpernick !isnum) set %mx.maxpernick 3
+  if (%mx.maxpernick !isnum) set %mx.maxpernick 1
   if (%mx.maxpernick < 1) set %mx.maxpernick 1
   if (%mx.maxpernick > 5) set %mx.maxpernick 5
-  if (%mx.maxfind !isnum) set %mx.maxfind 8
-  if (%mx.maxfind < 1) set %mx.maxfind 1
-  if (%mx.maxfind > 8) set %mx.maxfind 8
+  if (%mx.maxfind !isnum) set %mx.maxfind 3
+  if (%mx.maxfind < 1) set %mx.maxfind 3
+  if (%mx.maxfind > 8) set %mx.maxfind 3
   if (%mx.sendinterval !isnum) set %mx.sendinterval 4
   if (%mx.sendinterval < 3) set %mx.sendinterval 3
   if (%mx.sendinterval > 60) set %mx.sendinterval 60
@@ -7748,6 +7854,9 @@ alias mx.apply.runtime {
   if (%mx.out.delay !isnum) set %mx.out.delay 7000
   if (%mx.out.delay < 5000) set %mx.out.delay 5000
   if (%mx.out.delay > 30000) set %mx.out.delay 30000
+  if (%mx.find.out.delay !isnum) set %mx.find.out.delay 1000
+  if (%mx.find.out.delay < 500) set %mx.find.out.delay 500
+  if (%mx.find.out.delay > 5000) set %mx.find.out.delay 5000
   if (%mx.rartimeout !isnum) set %mx.rartimeout 300
   if (%mx.rartimeout < 300) set %mx.rartimeout 300
   if (%mx.rartimeout > 1200) set %mx.rartimeout 1200
