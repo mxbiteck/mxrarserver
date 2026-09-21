@@ -2945,7 +2945,7 @@ alias mx.dcconf {
 on *:LOAD:{
   if (%mx.update.reload == 1) {
     set %mx.started 1
-    mx.update.loaded
+    .timerMXUPDATELOADED -m 0 1000 mx.update.loaded
     return
   }
   if ($version < 7.0) {
@@ -4165,9 +4165,10 @@ alias -l mx.find.cooldown.allow {
   if ((!%nick) || (!%net)) return 0
   var %seconds = $iif(%mx.find.cooldown isnum 1-60,%mx.find.cooldown,5)
   var %hash = $md5($+(%net,$chr(124),%nick))
-  var %last = $eval($+(%,mx.find.cooldown.nick.,%hash),2)
+  var %var = $+(%,mx.find.cooldown.nick.,%hash)
+  var %last = $eval(%var,2)
   if ((%last isnum) && ($calc($ctime - %last) < %seconds)) return 0
-  set $+(%,mx.find.cooldown.nick.,%hash) $ctime
+  set $+(-u,%seconds) %var $ctime
   return 1
 }
 
@@ -9052,13 +9053,22 @@ alias -l mx.update.apply {
 }
 
 alias mx.update.loaded {
+  ; Only finalize a confirmed installed update
+  if (%mx.update.reload != 1) return
+  if (!%mx.update.from) return
+  if (!%mx.update.to) return
+  if (%mx.version != %mx.update.to) return
   var %from = %mx.update.from, %to = %mx.update.to
+  .timerMXUPDATELOADED off
   unset %mx.update.reload
   unset %mx.update.running
   unset %mx.update.from
   unset %mx.update.to
   unset %mx.update.new
   unset %mx.update.script
+  unset %mx.update.version.path
+  unset %mx.update.download.path
+  unset %mx.update.timeout.socket
   if (%to) set %mx.version %to
   if ($dialog(mx.rarserver)) did -ra mx.rarserver 707 mx.rarserver v $+ %mx.version $+  - Stage 2
   mx.update.ui
@@ -9074,11 +9084,20 @@ alias mx.update.timeout {
 
 alias -l mx.update.fail {
   .timerMXUPDATETIMEOUT off
-  if ($sock(MX.UPDATE.VERSION)) { sockmark MX.UPDATE.VERSION error | sockclose MX.UPDATE.VERSION }
-  if ($sock(MX.UPDATE.DOWNLOAD)) { sockmark MX.UPDATE.DOWNLOAD error | sockclose MX.UPDATE.DOWNLOAD }
+  if ($sock(MX.UPDATE.VERSION)) {
+    sockmark MX.UPDATE.VERSION error
+    sockclose MX.UPDATE.VERSION
+  }
+  if ($sock(MX.UPDATE.DOWNLOAD)) {
+    sockmark MX.UPDATE.DOWNLOAD error
+    sockclose MX.UPDATE.DOWNLOAD
+  }
   set %mx.update.running 0
   unset %mx.update.available
   unset %mx.update.remote.*
+  unset %mx.update.version.path
+  unset %mx.update.download.path
+  unset %mx.update.timeout.socket
   mx.update.ui
   mx.update.status Error: $1-
 }
