@@ -1,5 +1,5 @@
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
-; mx.rarserver
+; mxrarserver
 ; Version: 2.1.4
 ; Developed by Bsk (Undernet)
 ; Release date: 2026-04-28
@@ -125,7 +125,7 @@ dialog mx.rarserver {
   text "Statistics", 706, 81 7 243 10
 
   box "Configuration", 199, 81 22 116 101
-  check "Enable mx.rarserver", 121, 87 31 103 8
+  check "Enable mxrarserver", 121, 87 31 103 8
   check "Start queue on join", 122, 87 42 103 8
   check "Enable channel ads", 123, 87 54 103 8
   check "Show DCC events", 151, 87 65 103 8
@@ -366,7 +366,7 @@ dialog mx.rarserver {
   text "0", 930, 282 136 8 8, right
   text "0 B", 931, 293 136 26 8, right
 
-  text "mx.rarserver v2.1.4 - Stage 2", 707, 8 177 160 8
+  text "mxrarserver v2.1.4 - Stage 2", 707, 8 177 160 8
   text "", 709, 170 177 115 8, right
   button "Close", 109, 289 174 34 12, cancel
 }
@@ -2883,7 +2883,7 @@ alias mx.cfg.vars.defaults {
   if (%mx.find.queue == $null) set %mx.find.queue %mx.scriptdir $+ mxfindqueueout.txt
   if (%mx.find.cooldown == $null) set %mx.find.cooldown 5
   if (%mx.find.interval == $null) set %mx.find.interval 250
-  if (%mx.dll == $null) set %mx.dll %mx.scriptdir $+ mxbsk.dll
+  if (%mx.dll == $null) set %mx.dll %mx.scriptdir $+ dll\mxbsk.dll
   if (%mx.finder.dll == $null) set %mx.finder.dll %mx.scriptdir $+ dll\mxfinder.dll
   if (%mx.rarworker == $null) set %mx.rarworker %mx.scriptdir $+ mxrar.exe
   if (%mx.winrar == $null) set %mx.winrar C:\Program Files\WinRAR\Rar.exe
@@ -2948,6 +2948,7 @@ on *:LOAD:{
     .unload -rs $script
     halt
   }
+  mx.dll.unload.all
   if (%mx.started) return
   set %mx.started 1
   mx.start
@@ -3193,6 +3194,14 @@ alias mx.bootstrap {
   mx.del.clean
   mx.assignment.migrate
   mx.assignment.sync
+}
+
+alias mx.dll.unload.all {
+  dll -u $qt($scriptdir $+ dll\mxbsk.dll)
+  dll -u $qt($scriptdir $+ dll\mxfinder.dll)
+  dll -u $qt($scriptdir $+ dll\DCX.dll)
+  dll -u $qt($scriptdir $+ dll\mxicons.dll)
+  dll -u $qt($scriptdir $+ dll\WebView2Loader.dll)
 }
 
 alias mx.hardreset {
@@ -6238,7 +6247,7 @@ alias mx.msg.adx {
               mx.out.send msg %cid %chan $iif(%mx.ad.echo == 1,0,1) %msg
             }
             if ((%mx.ctcp.channels == 1) && (%mode != ctcp)) {
-              var %ctcp = SLOTS %maxsend %slots %next %qcount 999 %ctcpspeed %entries %totalsize %servermode %listdate $uptime(server,3) mx.rarserver v $+ %mx.version
+              var %ctcp = SLOTS %maxsend %slots %next %qcount 999 %ctcpspeed %entries %totalsize %servermode %listdate $uptime(server,3) mxrarserver v $+ %mx.version
               mx.out.send ctcp %cid %chan 1 %ctcp
             }
           }
@@ -9089,7 +9098,6 @@ alias -l mx.update.ui {
 
 alias -l mx.update.status {
   echo -s $+(%mx.c3,$chr(32),$chr(91),%mx.c2,$chr(32),Update,$chr(32),%mx.c3,$chr(93),$chr(32),%mx.c1,$1-,$chr(32),%mx.nc)
-  ;  echo -s $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),[MX.UPDATE],$chr(32),$1-)
   if ($dialog(mx.rarserver)) did -ra mx.rarserver 709 $1-
-  mx.dbg %mx.c2 [MX.UPDATE] %mx.c1 $+ $1- %mx.nc
+  mx.dbg $+(%mx.c3,$chr(32),$chr(91),%mx.c2,$chr(32),Update,$chr(32),%mx.c3,$chr(93),$chr(32),%mx.c1,$1-,$chr(32),%mx.nc)
 }
