@@ -9077,6 +9077,8 @@ alias -l mx.update.fail {
   if ($sock(MX.UPDATE.VERSION)) { sockmark MX.UPDATE.VERSION error | sockclose MX.UPDATE.VERSION }
   if ($sock(MX.UPDATE.DOWNLOAD)) { sockmark MX.UPDATE.DOWNLOAD error | sockclose MX.UPDATE.DOWNLOAD }
   set %mx.update.running 0
+  unset %mx.update.available
+  unset %mx.update.remote.*
   mx.update.ui
   mx.update.status Error: $1-
 }
