@@ -3058,14 +3058,14 @@ on *:LOAD:{
     halt
   }
   mx.dll.unload.all
-  if (%mx.update.reload == 1) {
-    unset %mx.started
-    unset %mx.start.last
-    set %mx.started 1
-    mx.start
-    .timerMXUPDATELOADED -m 1 2500 mx.update.loaded
-    return
-  }
+if (%mx.update.reload == 1) {
+  unset %mx.started
+  unset %mx.start.last
+  set %mx.started 1
+  mx.start
+  if ((%mx.update.from) && (%mx.update.to)) mx.update.loaded
+  return
+}
   if (%mx.started) return
   set %mx.started 1
   mx.start
