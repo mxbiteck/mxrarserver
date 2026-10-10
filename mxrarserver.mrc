@@ -9667,6 +9667,7 @@ alias -l mx.update.apply {
   set %mx.update.reload 1
   set %mx.update.running 1
   unset %mx.update.available
+ if ($dialog(mxc.chat)) dialog -x mxc.chat
   .timerMXUPDATELOADED -m 1 2500 mx.update.loaded
   .reload -rs $qt(%script)
   halt
