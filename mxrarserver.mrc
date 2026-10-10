@@ -1,13 +1,20 @@
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; mxrarserver
-; Version: 2.1.5
+; Version: 2.1.6
 ; Developed by Bsk (Undernet)
 ; Release date: 2026-04-28
-; Last update: 2026-09-20
+; Last update: 2026-10-10
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; Features: RAR Timeout, Multi-Network Support, Theme and Colors, DCC Transfer Monitor
 ; Smart Folder Naming, Queue Protection, Startup Cleanup, Worker Cleanup, Window Manager.
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;+ mxrarserver v2.1.6
+;+ Added private chat between mxrarserver servers with message history and logging.
+;+ Added independent desktop windows with minimization and restoration support.
+;+ Improved request validation to reject excessively long requests.
+;+ Improved window display handling for better compatibility with mIRC.
+;+ Improved multi-network queue handling with independent reconnection delays.
+;+ Applied minor bug fixes and stability improvements.
 
 ;+ mxrarserver v2.1.5
 ;+ Improved timer handling and queue synchronization to prevent overlapping processing.
@@ -126,7 +133,7 @@
 ;+ Fixed mxbsk.dll 
 
 dialog mx.rarserver {
-  title "mxrarserver v2.1.5 - Files and Folders Configuration"
+  title "mxrarserver v2.1.6 - Files and Folders Configuration"
   size -1 -1 330 190
   option dbu
 
@@ -177,15 +184,16 @@ dialog mx.rarserver {
   text "Idle sleep (min)", 144, 207 133 73 8
   edit "", 145, 281 130 25 11, center autohs
   scroll "", 999, 307 130 9 11, range 5 31 pos 5 page 1
-  box "Events", 176, 81 148 79 25
-  text "Select mode", 174, 86 159 35 22
-  combo 173, 120 157 33 42, drop
+  box "Events", 176, 81 148 55 25
+  text "Mode", 174, 86 159 35 22
+  combo 173, 101 157 30 39, drop
 
-  box "Actions", 177, 164 148 160 25
-  button "Monitor", 116, 169 157 29 10
-  button "Windows", 118, 200 157 29 10
-  button "Update", 178, 231 157 29 10
-  button "Restart", 119, 262 157 29 10
+  box "Actions", 177, 140 148 184 25
+  button "Chat", 179, 143 157 29 10
+  button "Monitor", 116, 173 157 29 10
+  button "Windows", 118, 203 157 29 10
+  button "Update", 178, 233 157 29 10
+  button "Restart", 119, 263 157 29 10
   button "Reset", 120, 293 157 29 10
 
   box "Folder Lists", 200, 81 22 102 88
@@ -380,9 +388,10 @@ dialog mx.rarserver {
   text "0", 930, 282 136 8 8, right
   text "0 B", 931, 293 136 26 8, right
 
-  text "mxrarserver v2.1.5 - Stage 2", 707, 8 177 160 8
-  text "", 709, 170 177 115 8, right
-  button "Close", 109, 289 174 34 12, cancel
+  text "mxrarserver v2.1.6 - Stage 2", 707, 8 177 127 8
+  text "", 710, 77 177 83 8
+  text "", 709, 146 177 140 8, right
+  button "Close", 109, 289 175 34 12, cancel
 }
 
 
@@ -403,7 +412,7 @@ on *:dialog:mx.workdir:init:*:{
 
 on *:dialog:mx.workdir:sclick:3:{
   if ((%mx.busy == 1) || ($send(0) > 0)) {
-    mx.dbg %mx.c2 Error: %mx.c1 Workdir cannot be changed while compression or DCC transfers are active. %mx.nc
+    mx.dbg %mx.c2 Error: $+ %mx.c1 Workdir cannot be changed while compression or DCC transfers are active. %mx.nc
     return
   }
   var %dir = $sdir(%mx.workdir,Select mx.rarserver workdir location)
@@ -430,9 +439,13 @@ on *:dialog:mx.workdir:sclick:3:{
 on *:dialog:mx.workdir:sclick:4: dialog -x mx.workdir
 
 alias mx mx.cfg.open
-alias mx.cfg.open { 
-  if ($dialog(mx.rarserver)) return
-  dialog -m mx.rarserver mx.rarserver
+alias mx.cfg.open {
+  if ($dialog(mx.rarserver)) {
+    dialog -e mx.rarserver
+    dialog -v mx.rarserver
+    return
+  }
+  dialog -md mx.rarserver mx.rarserver
 }
 
 alias -l mx.main.dcx.path return $scriptdir $+ dll\DCX.dll
@@ -501,7 +514,7 @@ alias -l mx.main.tree.create {
     return 0
   }
   mx.main.dcx.call Mark mx.rarserver mx.main.callback
-  mx.main.dcx.call xdialog -g mx.rarserver +b $mx.dcx.bg
+  if ($darkmode == $true) mx.main.dcx.call xdialog -g mx.rarserver +b $mx.dcx.bg
   mx.main.dcx.call xdialog -c mx.rarserver 700 treeview 0 0 $mx.main.pxw(74) $mx.main.pxh(171) fullrow showsel noident nohscroll notooltips doublebuffer
   mx.main.dcx.call xdid -i mx.rarserver 700 +b $rgb(43,45,48)
   mx.main.dcx.call xdid -i mx.rarserver 700 +t $rgb(238,238,238)
@@ -603,7 +616,7 @@ alias -l mx.main.select {
 
 alias mx.main.section {
   if (!$dialog(mx.rarserver)) return
-  var %general = 701 199 121 122 123 151 152 173 174 181 182 831 832 833 834 835 841 843 844 856 117 130 135 136 444 126 127 555 137 138 666 142 143 888 144 145 999 146 147 1000 176 177 116 118 178 119 120
+  var %general = 701 199 121 122 123 151 152 173 174 181 182 831 832 833 834 835 841 843 844 856 117 130 135 136 444 126 127 555 137 138 666 142 143 888 144 145 999 146 147 1000 176 177 116 179 118 178 119 120
   var %folders = 703 200 201 202 204 205 206 207 208 215 216 210 211 212 214 150 124 160 161 857 139 141 777 854 855 125
   var %files = 702 500 501 502 503 504 505 506 507 515 516 510 511 512 513 520 521 522 523 531 532 533 535
   var %assign = 704 400 401 402 403 404 407 408 409 410 411 414 420 421 422 423 424 426 850 851 852 853
@@ -891,40 +904,40 @@ alias mx.main.stats.refresh {
   var %fileRate = $iif($calc(%fileDone + %fileFail) > 0,$round($calc((%fileDone / (%fileDone + %fileFail)) * 100),1),0)
   if (%mx.loaded.time == $null) { set %mx.loaded.time $asctime(yyyy-mm-dd HH:nn:ss) }
   did -ra mx.rarserver 657 %mx.loaded.time
-  did -ra mx.rarserver 602 $calc(%folderReq + %fileReq)
-  did -ra mx.rarserver 606 $calc(%folderDccDone + %fileDone)
+  did -ra mx.rarserver 602 $bmx($calc(%folderReq + %fileReq))
+  did -ra mx.rarserver 606 $bmx($calc(%folderDccDone + %fileDone))
   did -ra mx.rarserver 612 $mx.bytes($calc(%folderBytes + %fileBytes))
   did -ra mx.rarserver 614 $mx.speed(%generalAvg)
-  did -ra mx.rarserver 642 %fileReq
-  did -ra mx.rarserver 644 %fileSent
-  did -ra mx.rarserver 646 %fileDone
-  did -ra mx.rarserver 648 %fileFail
+  did -ra mx.rarserver 642 $bmx(%fileReq)
+  did -ra mx.rarserver 644 $bmx(%fileSent)
+  did -ra mx.rarserver 646 $bmx(%fileDone)
+  did -ra mx.rarserver 648 $bmx(%fileFail)
   did -ra mx.rarserver 652 $mx.bytes(%fileBytes)
   did -ra mx.rarserver 661 $+(%fileRate,$chr(37))
-  did -ra mx.rarserver 622 %folderReq
-  did -ra mx.rarserver 901 %folderStart
-  did -ra mx.rarserver 626 %folderDone
-  did -ra mx.rarserver 624 %folderSent
-  did -ra mx.rarserver 903 %folderDccDone
-  did -ra mx.rarserver 628 %folderFail
-  did -ra mx.rarserver 630 %folderCancel
+  did -ra mx.rarserver 622 $bmx(%folderReq)
+  did -ra mx.rarserver 901 $bmx(%folderStart)
+  did -ra mx.rarserver 626 $bmx(%folderDone)
+  did -ra mx.rarserver 624 $bmx(%folderSent)
+  did -ra mx.rarserver 903 $bmx(%folderDccDone)
+  did -ra mx.rarserver 628 $bmx(%folderFail)
+  did -ra mx.rarserver 630 $bmx(%folderCancel)
   did -ra mx.rarserver 634 $mx.bytes(%compressedBytes)
   did -ra mx.rarserver 632 $mx.bytes(%folderBytes)
   did -ra mx.rarserver 659 $+(%folderRate,$chr(37))
-  did -ra mx.rarserver 906 %listReq
-  did -ra mx.rarserver 908 %listDone
-  did -ra mx.rarserver 910 %listFail
-  did -ra mx.rarserver 916 %fileTodayCount
+  did -ra mx.rarserver 906 $bmx(%listReq)
+  did -ra mx.rarserver 908 $bmx(%listDone)
+  did -ra mx.rarserver 910 $bmx(%listFail)
+  did -ra mx.rarserver 916 $bmx(%fileTodayCount)
   did -ra mx.rarserver 913 $mx.bytes(%fileTodayBytes)
-  did -ra mx.rarserver 917 %fileYesterdayCount
+  did -ra mx.rarserver 917 $bmx(%fileYesterdayCount)
   did -ra mx.rarserver 915 $mx.bytes(%fileYesterdayBytes)
-  did -ra mx.rarserver 920 %folderTodayCount
+  did -ra mx.rarserver 920 $bmx(%folderTodayCount)
   did -ra mx.rarserver 921 $mx.bytes(%folderTodayBytes)
-  did -ra mx.rarserver 923 %folderYesterdayCount
+  did -ra mx.rarserver 923 $bmx(%folderYesterdayCount)
   did -ra mx.rarserver 924 $mx.bytes(%folderYesterdayBytes)
-  did -ra mx.rarserver 927 %totalTodayCount
+  did -ra mx.rarserver 927 $bmx(%totalTodayCount)
   did -ra mx.rarserver 928 $mx.bytes(%totalTodayBytes)
-  did -ra mx.rarserver 930 %totalYesterdayCount
+  did -ra mx.rarserver 930 $bmx(%totalYesterdayCount)
   did -ra mx.rarserver 931 $mx.bytes(%totalYesterdayBytes)
 }
 
@@ -1174,6 +1187,7 @@ on *:dialog:mx.rarserver:sclick:*:{
   if ($did == 120) { mx.hardreset | return }
   if ($did == 125) { mx.workdir.open | return }
   if ($did == 178) { mx.update.button | return }
+  if ($did == 179) { mx.chat | return }
   if ($did == 202) { mx.cfg.pl.add | return }
   if ($did == 204) { mx.cfg.pl.del | return }
   if ($did == 205) { mx.build.busy selected | return }
@@ -1326,7 +1340,6 @@ alias mx.cfg.plb2.selchanged {
 ;==============================================================================
 ; FILE LISTS
 ;==============================================================================
-
 alias -l mx.files.selected {
   if (!$dialog(mx.rarserver)) return
   return $strip($mx.main.dcx.get(mx.rarserver,501,2).seltext)
@@ -1594,7 +1607,7 @@ alias mx.files.build {
   }
   var %count = $mx.files.config.write(%job)
   if (%count <= 0) {
-    mx.dbg %mx.c2 Error: %mx.c1 No valid file directories configured %mx.nc
+    mx.dbg %mx.c2 Error: $+ %mx.c1 No valid file directories configured %mx.nc
     return
   }
   var %trg = %mx.trigger
@@ -1604,17 +1617,15 @@ alias mx.files.build {
   }
   var %marker = %mx.files.base $+ \running.tmp
   var %progress = $mx.build.progress.file(files)
-  var %masterini = %mx.files.public $+ \masterlist.ini
+  var %stage = $mx.build.stage.path(files)
+  if (!$mx.build.stage.prepare(files)) {
+    mx.dbg %mx.c2 Error: $+ %mx.c1 Files build staging directory is unavailable. %mx.nc
+    return
+  }
   if ($isfile(%marker)) .remove $qt(%marker)
   if ($isfile(%progress)) .remove $qt(%progress)
-  if ($isfile(%mx.files.masterlist)) .remove $qt(%mx.files.masterlist)
-  if ($isfile(%masterini)) .remove $qt(%masterini)
   if ($isfile(%mx.files.errors)) .remove $qt(%mx.files.errors)
-  if (%job) {
-    var %oldini = %mx.files.public $+ \ $+ %job $+ \ $+ %job $+ .ini
-    if ($isfile(%oldini)) .remove $qt(%oldini)
-  }
-  var %args = /config= $+ $qt(%mx.files.conf) $chr(32) /publicdir= $+ $qt(%mx.files.public) $chr(32) /folderspublicdir= $+ $qt(%mx.plbase) $chr(32) /master= $+ $qt(%mx.files.masterlist) $chr(32) /err= $+ $qt(%mx.files.errors) $chr(32) /marker= $+ $qt(%marker) $chr(32) /progress= $+ $qt(%progress) $chr(32) /trigger= $+ $qt(%trg) $chr(32) /mode=files $chr(32) /subfolders= $+ %mx.files.subfolders $chr(32) /excludehidden= $+ %mx.files.excludehidden $chr(32) /excluded= $+ $qt(%mx.files.excluded)
+  var %args = /config= $+ $qt(%mx.files.conf) $chr(32) /publicdir= $+ $qt(%stage) $chr(32) /folderspublicdir= $+ $qt(%mx.plbase) $chr(32) /master= $+ $qt($+(%stage,\masterlist.txt)) $chr(32) /err= $+ $qt(%mx.files.errors) $chr(32) /marker= $+ $qt(%marker) $chr(32) /progress= $+ $qt(%progress) $chr(32) /trigger= $+ $qt(%trg) $chr(32) /mode=files $chr(32) /subfolders= $+ %mx.files.subfolders $chr(32) /excludehidden= $+ %mx.files.excludehidden $chr(32) /excluded= $+ $qt(%mx.files.excluded)
   if (%job) %args = %args $+ $chr(32) /job= $+ $qt(%job)
   set %mx.files.build.run 1
   set %mx.files.build.start $ctime
@@ -1674,50 +1685,49 @@ alias mx.files.build.watch {
   if (!$hget(mx.files.build.reported)) {
     hmake mx.files.build.reported 100
   }
-  var %reported = 0
-  var %expected = 0
-  var %masterReady = 0
-  if (%mx.files.build.mode == selected) {
-    %expected = 1
-    mx.files.report.list %mx.files.build.list
-    if ($hget(mx.files.build.reported,%mx.files.build.list)) {
-      %reported = 1
-    }
+  var %status = $lower($readini(%mx.files.build.progress,Progress,status))
+  if (($isfile(%mx.files.build.marker)) || (($calc($ctime - %mx.files.build.start) < 5) && (%status != completed))) {
+    mx.buildmini.update
+    return
   }
-  elseif ((%mx.files.build.mode == all) && ($isfile(%mx.files.plnames))) {
-    %expected = $lines(%mx.files.plnames)
-    var %i = 1
-    while (%i <= %expected) {
-      var %pl = $strip($read(%mx.files.plnames,n,%i),burc)
-      if (%pl) {
-        mx.files.report.list %pl
-        if ($hget(mx.files.build.reported,%pl)) inc %reported
-      }
-      inc %i
-    }
-  }
-  mx.files.report.master
-  if ($hget(mx.files.build.reported,masterlist)) {
-    %masterReady = 1
-  }
-  if ((%reported < %expected) || (%masterReady != 1)) {
-    if (($isfile(%mx.files.build.marker)) || ($calc($ctime - %mx.files.build.start) < 5)) {
-      mx.buildmini.update
-      return
-    }
+  if (%status != completed) {
     .timerMXFILESBUILD off
     mx.dbg %mx.c2 Error: $+ %mx.c1 PublicListBuilder.exe ended without valid Files completion data. %mx.nc
     mx.buildmini.fail
+    mx.build.stage.clean files
+    if ($isfile(%mx.files.build.progress)) .remove $qt(%mx.files.build.progress)
     unset %mx.files.build.*
     mx.files.refresh
     mx.assignment.ui.init
     return
   }
+  if (!$mx.build.stage.publish(files)) {
+    inc %mx.files.build.publishtries
+    if (%mx.files.build.publishtries < 15) { mx.buildmini.update | return }
+    .timerMXFILESBUILD off
+    mx.dbg %mx.c2 Error: $+ %mx.c1 New Files list publication failed, staged output was kept for inspection. %mx.nc
+    mx.buildmini.fail
+    if ($isfile(%mx.files.build.progress)) .remove $qt(%mx.files.build.progress)
+    unset %mx.files.build.*
+    return
+  }
+  if (%mx.files.build.mode == selected) mx.files.report.list %mx.files.build.list
+  else {
+    var %i = 1
+    while ($read(%mx.files.plnames,n,%i)) {
+      mx.files.report.list $ifmatch
+      inc %i
+    }
+  }
+  mx.files.report.master
   if ($isfile(%mx.files.build.marker)) {
     .remove $qt(%mx.files.build.marker)
   }
   .timerMXFILESBUILD off
   mx.buildmini.done
+  mx.build.stage.clean files
+  if ($isfile(%mx.files.build.progress)) .remove $qt(%mx.files.build.progress)
+  if (($isfile(%mx.files.errors)) && ($file(%mx.files.errors).size == 0)) .remove $qt(%mx.files.errors)
   unset %mx.files.build.*
   mx.files.refresh
   mx.assignment.ui.init
@@ -2035,11 +2045,11 @@ alias -l mx.list.path.allowed {
 alias -l mx.lookup.allowed {
   unset %mx.lookup.laststatus
   unset %mx.lookup.lasterror
-  unset %mx.lookup.lastpath
   var %master = $1
   var %key = $strip($2)
   var %type = $lower($3)
   var %list = $strip($4-)
+  var %allowlist = %list
   if ((!$isfile(%master)) || (!%key) || (!%list)) {
     set %mx.lookup.laststatus ERR
     set %mx.lookup.lasterror invalid_input
@@ -2061,26 +2071,40 @@ alias -l mx.lookup.allowed {
   var %time = $calc($ticks - %ticks)
   var %status = $gettok(%res,1,124)
   if ((%type == files) && (%status == NO) && ($gettok(%res,2,124) == not_found)) {
-    var %words = $numtok(%key,32)
-    while (%words > 1) {
-      dec %words
-      var %try = $gettok(%key,$+(1-,%words),32)
-      var %tryparams = $+(%try,$chr(124),%master,$chr(124),%mx.files.database,$chr(124),%list)
-      var %tryres = $dll($qt(%dll),LookupExact,%tryparams)
-      var %trystatus = $gettok(%tryres,1,124)
-      if (%trystatus == OK) {
-        %key = %try
-        %res = %tryres
-        %status = OK
-        break
+    var %fallbackres
+    var %fallbacklist
+    var %i = 1
+    while ($read(%mx.files.plnames,n,%i)) {
+      var %pl = $strip($ifmatch)
+      if ((%pl) && ($lower(%pl) != $lower(%list))) {
+        var %tryparams = $+(%key,$chr(124),%master,$chr(124),%mx.files.database,$chr(124),%pl)
+        var %tryres = $dll($qt(%dll),LookupExact,%tryparams)
+        if ($gettok(%tryres,1,124) == OK) {
+          var %trypath = $mx.path.norm($gettok(%tryres,2-,124))
+          if ($isfile(%trypath)) {
+            %res = %tryres
+            %status = OK
+            %allowlist = %pl
+            break
+          }
+          elseif (!%fallbackres) {
+            %fallbackres = %tryres
+            %fallbacklist = %pl
+          }
+        }
       }
+      inc %i
+    }
+    if ((%status == NO) && (%fallbackres)) {
+      %res = %fallbackres
+      %status = OK
+      %allowlist = %fallbacklist
     }
   }
   set %mx.lookup.laststatus %status
   set %mx.lookup.lasterror $gettok(%res,2-,124)
   if (%status != OK) return
   var %path = $mx.path.norm($gettok(%res,2-,124))
-  if (%path) set %mx.lookup.lastpath %path
   if (!%path) {
     set %mx.lookup.laststatus ERR
     set %mx.lookup.lasterror empty_path
@@ -2096,7 +2120,7 @@ alias -l mx.lookup.allowed {
     set %mx.lookup.lasterror folder_missing
     return
   }
-  if (!$mx.list.path.allowed(%type,%list,%path)) {
+  if (!$mx.list.path.allowed(%type,%allowlist,%path)) {
     set %mx.lookup.laststatus NO
     set %mx.lookup.lasterror path_not_allowed
     return
@@ -2175,14 +2199,163 @@ alias mx.build.isrunning {
   return 0
 }
 
+alias -l mx.build.stage.path {
+  if ($lower($1) == files) return $+(%mx.publicroot,\mx-stage\files)
+  if ($lower($1) == folders) return $+(%mx.publicroot,\mx-stage\folders)
+}
+
+alias -l mx.build.stage.clean {
+  var %dir = $mx.build.stage.path($1)
+  if ((!%dir) || (!$mx.cfg.dir.purge.allowed(%dir))) return
+  if ($isdir(%dir)) mx.cfg.dir.purge %dir
+  var %parent = $+(%mx.publicroot,\mx-stage)
+  if (($isdir(%parent)) && (!$findfile(%parent,*,0)) && (!$finddir(%parent,*,0))) .rmdir $qt(%parent)
+}
+
+alias -l mx.build.stage.prepare {
+  var %dir = $mx.build.stage.path($1)
+  if ((!%dir) || (!$mx.cfg.dir.purge.allowed(%dir))) return 0
+  mx.build.stage.clean $1
+  if ($isdir(%dir)) return 0
+  var %parent = $+(%mx.publicroot,\mx-stage)
+  if (!$isdir(%parent)) mkdir $qt(%parent)
+  if (!$isdir(%parent)) return 0
+  mkdir $qt(%dir)
+  return $iif($isdir(%dir),1,0)
+}
+
+alias mx.build.stage.cancel.clean {
+  if ($mx.build.isrunning) return
+  mx.build.stage.clean files
+  mx.build.stage.clean folders
+  var %filesProgress = $mx.build.progress.file(files), %foldersProgress = $mx.build.progress.file(folders)
+  if ($isfile(%filesProgress)) .remove $qt(%filesProgress)
+  if ($isfile(%foldersProgress)) .remove $qt(%foldersProgress)
+}
+
+alias -l mx.build.stage.install {
+  var %from = $mx.path.norm($1), %to = $mx.path.norm($2-)
+  if ((!$isfile(%from)) || (!%to)) return 0
+  var %pending = %to $+ .mxnew
+  if ($isfile(%pending)) .remove $qt(%pending)
+  .copy -o $qt(%from) $qt(%pending)
+  if ((!$isfile(%pending)) || ($file(%pending).size != $file(%from).size)) {
+    if ($isfile(%pending)) .remove $qt(%pending)
+    return 0
+  }
+  .rename -o $qt(%pending) $qt(%to)
+  if ($isfile(%pending)) { .remove $qt(%pending) | return 0 }
+  return $iif($isfile(%to),1,0)
+}
+
+alias -l mx.build.stage.close {
+  var %dir = $lower($mx.path.norm($1-)), %i = $send(0), %oldcid = $cid
+  while (%i >= 1) {
+    var %file = $mx.path.norm($+($send(%i).path,$send(%i).file))
+    if (($lower($mx.path.norm($nofile(%file))) == %dir) && (*-MX.rar iswm $nopath(%file))) {
+      var %nick = $send(%i), %cid = $send(%i).cid, %ordinal = 0, %j = 1
+      while (%j <= %i) {
+        if (($lower($send(%j)) == $lower(%nick)) && ($send(%j).cid == %cid)) inc %ordinal
+        inc %j
+      }
+      if ((%cid) && (%ordinal > 0)) {
+        var %cancelVar = $+(%,mx.build.stage.cancel.,$hash($lower(%file),32))
+        set -u30 %cancelVar $calc($(%cancelVar,2) + 1)
+        scid %cid
+        close $+(-xs,%ordinal) %nick
+        if (%oldcid) scid %oldcid
+      }
+    }
+    dec %i
+  }
+  %i = $lines(%mx.queue)
+  while (%i >= 1) {
+    var %line = $read(%mx.queue,n,%i), %file = $mx.path.norm($mx.queue.payload(%line))
+    if (($lower($mx.path.norm($nofile(%file))) == %dir) && (*-MX.rar iswm $nopath(%file))) write -dl %i $qt(%mx.queue)
+    dec %i
+  }
+}
+
+alias -l mx.build.stage.list {
+  var %type = $lower($1), %name = $2
+  var %root = $iif(%type == files,%mx.files.public,%mx.plbase)
+  var %source = $+($mx.build.stage.path(%type),\,%name), %dest = $+(%root,\,%name)
+  if ((!$mx.path.under(%source,$mx.build.stage.path(%type))) || (!$mx.path.under(%dest,%root))) return 0
+  if (!$isdir(%dest)) mkdir $qt(%dest)
+  if (!$isdir(%dest)) return 0
+  mx.build.stage.close %dest
+  var %i = $findfile(%source,*-MX.txt,0)
+  while (%i >= 1) {
+    var %from = $findfile(%source,*-MX.txt,%i)
+    if (($lower($mx.path.norm($nofile(%from))) == $lower(%source)) && (!$mx.build.stage.install(%from,$+(%dest,\,$nopath(%from))))) return 0
+    dec %i
+  }
+  %i = $findfile(%source,*-MX.rar,0)
+  while (%i >= 1) {
+    var %from = $findfile(%source,*-MX.rar,%i)
+    if (($lower($mx.path.norm($nofile(%from))) == $lower(%source)) && (!$mx.build.stage.install(%from,$+(%dest,\,$nopath(%from))))) return 0
+    dec %i
+  }
+  if (!$mx.build.stage.install($+(%source,\,%name,.ini),$+(%dest,\,%name,.ini))) return 0
+  %i = $findfile(%dest,*-MX.txt;*-MX.rar,0)
+  while (%i >= 1) {
+    var %old = $findfile(%dest,*-MX.txt;*-MX.rar,%i)
+    if (($lower($mx.path.norm($nofile(%old))) == $lower(%dest)) && (!$isfile($+(%source,\,$nopath(%old))))) {
+      .remove $qt(%old)
+      if ($isfile(%old)) return 0
+    }
+    dec %i
+  }
+  return 1
+}
+
+alias -l mx.build.stage.publish {
+  var %type = $lower($1), %stage = $mx.build.stage.path(%type)
+  var %root = $iif(%type == files,%mx.files.public,%mx.plbase)
+  var %selected = $iif(%type == files,%mx.files.build.mode,%mx.build.mode)
+  var %job = $iif(%type == files,%mx.files.build.list,%mx.build.name)
+  var %names = $iif(%type == files,%mx.files.plnames,%mx.plnames)
+  var %master = $+(%root,\masterlist.txt), %stagedMaster = $+(%stage,\masterlist.txt)
+  var %total = $iif(%selected == selected,1,$lines(%names)), %i = 1
+  if ((%total < 1) || (!$isfile(%stagedMaster)) || (!$isfile($+(%stage,\masterlist.ini)))) return 0
+  while (%i <= %total) {
+    var %name = $iif(%selected == selected,%job,$strip($read(%names,n,%i),burc))
+    var %source = $+(%stage,\,%name)
+    var %txt = $findfile(%source,*-MX.txt,1)
+    if ((!%name) || (!$isfile($+(%source,\,%name,.ini))) || (!$isfile(%txt)) || (!$isfile($+($left(%txt,-4),.rar)))) return 0
+    inc %i
+  }
+  if (!$mx.queue.lock.acquire(mx.build.stage.publish)) return 0
+  set %mx.build.switch %type
+  %i = 1
+  var %ok = 1
+  while (%i <= %total) {
+    var %name = $iif(%selected == selected,%job,$strip($read(%names,n,%i),burc))
+    if (!$mx.build.stage.list(%type,%name)) { %ok = 0 | break }
+    inc %i
+  }
+  if (%ok) {
+    var %index = $+(%master,.,%type,.mxfidx)
+    if ($isfile(%index)) .remove $qt(%index)
+    if ($isfile(%index)) %ok = 0
+    if ((%ok) && (!$mx.build.stage.install($+(%stage,\masterlist.ini),$+(%root,\masterlist.ini)))) %ok = 0
+    if ((%ok) && (!$mx.build.stage.install(%stagedMaster,%master))) %ok = 0
+  }
+  unset %mx.build.switch
+  mx.queue.lock.release mx.build.stage.publish
+  dmx.queue.refresh
+  return %ok
+}
+
 alias -l mx.build.request.blocked {
   var %type = $lower($1)
   if (%mx.complete.active == 1) return 1
-  if (%type == files) return $mx.build.files.running
-  if (%type == folders) return $mx.build.folders.running
+  if (%type == files) return $iif((%mx.build.switch == files) || (($mx.build.files.running) && (!$isfile(%mx.files.masterlist))),1,0)
+  if (%type == folders) return $iif((%mx.build.switch == folders) || (($mx.build.folders.running) && (!$isfile(%mx.masterlist))),1,0)
   if (%type == complete) {
-    if ($mx.build.files.running) return 1
-    if ($mx.build.folders.running) return 1
+    if (%mx.build.switch) return 1
+    if (($mx.build.files.running) && (!$isfile(%mx.files.masterlist))) return 1
+    if (($mx.build.folders.running) && (!$isfile(%mx.masterlist))) return 1
   }
   return 0
 }
@@ -2350,7 +2523,7 @@ on *:dialog:mx.monitor:sclick:3: mx.queue.move down mx.monitor
 on *:dialog:mx.monitor:sclick:4: mx.queue.remove mx.monitor
 
 alias mx.stats {
-  if (!$dialog(mx.rarserver)) dialog -m mx.rarserver mx.rarserver
+  mx.cfg.open
   if ($dialog(mx.rarserver)) mx.main.section statistics
 }
 
@@ -2636,10 +2809,11 @@ on *:JOIN:#:{
   if (%mx.enabled != 1) return
   if (!$isfile(%mx.queue)) return
   if ($lines(%mx.queue) <= 0) return
-  if ($timer(MXRARQ)) return
-  if ($timer(MXQSTART)) return
-  set %mx.queue.joinwait 1
-  .timerMXQSTART 1 30 mx.queue.joinwait.end
+  var %k = $+($chr(37),mx.connecting.,$cid)
+  if ($(%k,2) != 1) return
+  unset %mx.connecting. [ $+ [ $cid ] ]
+  unset %mx.netwait. [ $+ [ $cid ] ]
+  set -u15 $+($chr(37),mx.netwait.,$cid) 1
 }
 
 alias -l mx.queue.joinwait.clear {
@@ -2911,7 +3085,7 @@ alias mx.bytes {
 }
 
 alias mx.cfg.vars.defaults {
-  set %mx.version 2.1.5
+  set %mx.version 2.1.6
   if (%mx.update.enabled == $null) set %mx.update.enabled 1
   if (%mx.update.interval == $null) set %mx.update.interval 86400
   if (%mx.update.manifest == $null) set %mx.update.manifest https://raw.githubusercontent.com/mxbiteck/mxrarserver/main/mxrarserver.version
@@ -3030,8 +3204,20 @@ alias mx.cfg.vars.defaults {
   if (%mx.ad.nocolor == $null) set %mx.ad.nocolor 0
 }
 
+alias -l mx.netwait.active {
+  var %cid = $mx.net2cid($1)
+  if (!%cid) return 0
+  var %k = $+($chr(37),mx.netwait.,%cid)
+  if ($(%k,2) == 1) return 1
+  return 0
+}
 on *:CONNECT:{
   if (%mx.enabled != 1) return
+  if ((%mx.join == 1) && ($isfile(%mx.queue)) && ($lines(%mx.queue) > 0)) {
+    set -u20 $+($chr(37),mx.connecting.,$cid) 1
+    set -u20 $+($chr(37),mx.netwait.,$cid) 1
+    if (!$timer(MXRARQ)) dmx.queue.start
+  }
   if (%mx.sleeping == 1) {
     set %mx.sleeping 0
     mx.idle.touch
@@ -3051,39 +3237,17 @@ alias mx.dcconf {
   .pdcc on
 }
 
-/*
 on *:LOAD:{
   if ($version < 7.0) {
     echo -a 04Error: mx.rarserver requires mIRC 7.0 or higher.
     .unload -rs $script
     halt
   }
-  if (%mx.update.reload == 1) {
-    unset %mx.started
-    unset %mx.start.last
-    set %mx.started 1
-    mx.start
-    if ((%mx.update.from) && (%mx.update.to)) mx.update.loaded
-    return
-  }
-  if (%mx.started) return
-  set %mx.started 1
-  mx.start
-}
-*/
-on *:LOAD:{
-  if ($version < 7.0) {
-    echo -a 04Error: mx.rarserver requires mIRC 7.0 or higher.
-    .unload -rs $script
-    halt
-  }
-  mx.dll.unload.all
   if (%mx.started) return
   set %mx.started 1
   mx.start
 }
 
-/*
 on *:UNLOAD:{
   if (%mx.update.reload == 1) {
     .timermx* off
@@ -3094,17 +3258,7 @@ on *:UNLOAD:{
     .timerUSLOTS off
     return
   }
-*/
-on *:UNLOAD:{
-  if (%mx.update.reload == 1) {
-    .timermx* off
-    .timerPLB2 off
-    .timerbuildmini_close off
-    .timerTDBG off
-    .timerTDCC off
-    .timerUSLOTS off
-    return
-  }
+  mx.dlist %mx.c1 Unloading $+ $mx.logo
   .run -n taskkill /IM mxrar.exe /T /F
   .run -n taskkill /IM PublicListBuilder.exe /T /F
   .timermx* off
@@ -3134,8 +3288,12 @@ on *:UNLOAD:{
     unset %mx.sent.tick.*
     unset %mx.sleeping
     unset %mx.started
+    mx.dlist %mx.c1 Unloading complete. %mx.nc
+    mx.dlist %mx.c1 To reload the script: $+ %mx.c2 /load -rs $qt($script) %mx.nc
   }
   else {
+    mx.dlist %mx.c1 Unloading complete. %mx.nc
+    mx.dlist %mx.c1 To reload the script: $+ %mx.c2 /load -rs $qt($script) %mx.nc
     unset %mx.*
   }
 }
@@ -3231,6 +3389,9 @@ alias mx.kill.builder.clean {
   unset %mx.build.start
   unset %mx.build.mode
   unset %mx.plphase
+  unset %mx.build.switch
+  unset %mx.build.publishtries
+  .timerMXSTAGECANCEL -o 1 8 mx.build.stage.cancel.clean
   if ($dialog(mx.buildmini)) dialog -x mx.buildmini
   mx.title.refresh
 }
@@ -3384,7 +3545,6 @@ alias mx.dll.unload.all {
   dll -u $qt($scriptdir $+ dll\WebView2Loader.dll)
   unset %mx.finder.checked
   unset %mx.finder.ok
-  unset %mx.finder.version
 }
 
 alias mx.hardreset {
@@ -3550,7 +3710,7 @@ alias mx.hardreset {
   unset %mxhr.*
   mx.apply.runtime
   if (!$dialog(mx.rarserver)) {
-    .timerMXHR 1 3 dialog -m mx.rarserver mx.rarserver
+    .timerMXHR 1 3 mx.cfg.open
   }
   mx.dlist -a $+($mx.logo,%mx.c1,Hard reset completed,$chr(32),%mx.nc)
 }
@@ -3687,7 +3847,6 @@ alias dmx.queue.add {
 
 alias dmx.queue.start.now {
   if (%mx.enabled != 1) return
-  if (%mx.queue.joinwait == 1) return
   if (%mx.sleeping == 1) return
   .timerMXRARQ off
   .timerMXRARQ -io 1 2 mx.squeue
@@ -3695,7 +3854,6 @@ alias dmx.queue.start.now {
 
 alias dmx.queue.start {
   if (%mx.enabled != 1) return
-  if (%mx.queue.joinwait == 1) return
   if (%mx.sleeping == 1) return
   if (%mx.sendinterval !isnum) set %mx.sendinterval 8
   if (%mx.sendinterval < 3) set %mx.sendinterval 3
@@ -3771,7 +3929,12 @@ alias mx.files.lookup.process {
     return
   }
   if (%mx.lookup.laststatus == ERR) {
-    mx.dlist [LOOKUP] File lookup failed - Nick: %nick - Network: %net - Error: %mx.lookup.lasterror - Request: %key
+    if (%mx.lookup.lasterror == file_missing) {
+      mx.dbg %mx.c2 Error: $+ %mx.c1 File lookup failed $+ %mx.c2 - %mx.c1 $+ Nick: $+ %mx.c2 %nick %mx.c2 $+ - %mx.c1 $+ Network: $+ %mx.c2 %net %mx.c2 $+ - %mx.c1 $+ Check for excessive path length or filename/path spacing %mx.c2 $+ - %mx.c1 $+ Error: $+ %mx.c2 %mx.lookup.lasterror %mx.c2 $+ - %mx.c1 $+ Request: $+ %mx.c2 %key %mx.nc
+    }
+    else {
+      mx.dbg %mx.c2 Error: $+ %mx.c1 File lookup failed $+ %mx.c2 - %mx.c1 $+ Nick: $+ %mx.c2 %nick %mx.c2 $+ - %mx.c1 $+ Network: $+ %mx.c2 %net %mx.c2 $+ - %mx.c1 $+ Error: $+ %mx.c2 %mx.lookup.lasterror %mx.c2 $+ - %mx.c1 $+ Request: $+ %mx.c2 %key %mx.nc
+    }
   }
   var %cid = $mx.net2cid(%net)
   if ($isfile(%path)) {
@@ -3780,10 +3943,14 @@ alias mx.files.lookup.process {
   }
   elseif ((%cid) && (%mode != ctcp)) {
     if (%mx.lookup.laststatus == ERR) {
-      mx.origin.send notice %cid %nick %origin %mx.c2 Error: $+ %mx.c1 Files lookup service is temporarily unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+      if (%mx.lookup.lasterror == file_missing) {
+        mx.origin.send notice %cid %nick %origin %mx.c2 Error: $+ %mx.c1 File found in the list but currently unavailable. Please try another file. %mx.c3 $+ %mx.cr $+ $mx.logo
+      }
+      else {
+        mx.origin.send notice %cid %nick %origin %mx.c2 Error: $+ %mx.c1 Files lookup service is temporarily unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+      }
     }
     else {
-      mx.notfound.debug.write $+(%nick,$chr(29),%net,$chr(29),%list,$chr(29),%key,$chr(29),%mx.lookup.laststatus,$chr(29),%mx.lookup.lasterror)
       mx.origin.send notice %cid %nick %origin %mx.c2 Error: $+ %mx.c1 File not found. Check the requested filename, or the file may not be available in this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
   }
@@ -3881,7 +4048,7 @@ alias mx.build.notice {
   var %type = $lower($3)
   if ((!%cid) || (!%nick)) return
   if (%mx.complete.active == 1) {
-    mx.out.send notice %cid %nick %mx.c1 Complete list build in progress. Requests are temporarily disabled. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+    mx.out.send notice %cid %nick %mx.c1 The Complete list builder is currently busy processing another request. Please wait a moment and try again. %mx.c3 $+ %mx.cr $+ $mx.logo
     return
   }
   if (%type == files) {
@@ -4078,7 +4245,7 @@ alias mx.complete.request {
   }
   if (!$isfile(%mx.winrar)) {
     if (%mode != ctcp) {
-      mx.out.send notice %cid %nick %mx.c2 Error: %mx.c1 Complete list compression is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.out.send notice %cid %nick %mx.c2 Error: $+ %mx.c1 Complete list compression is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     return
   }
@@ -4271,6 +4438,7 @@ alias -l mx.complete.queue.cleanup {
 
 on *:TEXT:!list:*:{
   if ((%mx.enabled != 1) || (%mx.respond.list != 1)) return
+  var %origin = $iif($chan,$chan,pm)
   var %requestchan = $chan
   if (!%requestchan) %requestchan = $mx.request.channel($nick,$network)
   if (!%requestchan) return
@@ -4283,9 +4451,9 @@ on *:TEXT:!list:*:{
   var %files = $mx.assignment.files(%requestchan,$network)
   var %folders = $mx.assignment.folders(%requestchan,$network)
   var %types = $iif((%files) && (%folders),Files + Folders,$iif(%files,Files,Folders))
-  var %msg = %mx.c1 Available list: $+ %mx.c2 %pl %mx.c1 $+($chr(32),$chr(40),%types,$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Request it with: $+ %mx.c2 @ $+ %mx.trigger %mx.c3 $+ %mx.cr $+ $mx.logo
+  var %msg = %mx.c1 Available list: $+ %mx.c2 %pl $+ %mx.c1 $+($chr(32),$chr(40),%types,$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Request it with: $+ %mx.c2 @ $+ %mx.trigger %mx.c3 $+ %mx.cr $+ $mx.logo
   %msg = $mx.out.clean(notice,%msg)
-  mx.out.view notice %cidR $nick %msg
+  mx.origin.now notice %cidR $nick %origin %msg
   scid %cidR
   .notice $nick %msg
 }
@@ -4310,7 +4478,7 @@ on *:TEXT:@*:*:{
     if ((%lastT isnum) && ($calc($ctime - %lastT) < 15)) return
     set %keyT $ctime
     if (%mode != ctcp) {
-      mx.out.now notice %cidT $nick %mx.c1 File or folder trigger: $+ %mx.c2 ! $+ %mx.trigger $+ $chr(32) $+ FileOrFolderName %mx.c3 $+ %mx.cr $+ %mx.c1 List request trigger: $+ %mx.c2 @ $+ %mx.trigger %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.origin.now notice %cidT $nick %origin %mx.c1 File or folder trigger: $+ %mx.c2 ! $+ %mx.trigger $+ $chr(32) $+ fileORfoldername %mx.c3 $+ %mx.cr $+ %mx.c1 List request trigger: $+ %mx.c2 @ $+ %mx.trigger %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     .timer $+ $+(MXTRIGGER.,%cidT,.,$lower($nick)) 1 15 unset %keyT
     return
@@ -4451,6 +4619,8 @@ alias mx.find.request {
   mx.cfg.vars.defaults
   var %files = $mx.assignment.files(%chan,%net)
   var %folders = $mx.assignment.folders(%chan,%net)
+  if (!%files) %files = -
+  if (!%folders) %folders = -
   var %requesttype
   if ((%files) && (%files != -) && (%folders) && (%folders != -)) {
     %requesttype = complete
@@ -4554,9 +4724,8 @@ alias -l mx.find.request.run {
     return DONE
   }
   var %params = %term $+ $chr(124) $+ %master $+ $chr(124) $+ %fetchmax $+ $chr(124) $+ %type
-  var %t = $ticks
+  if (%type == files) %params = $+(%params,$chr(124),%mx.files.database,$chr(124),%list)
   var %res = $dll($qt(%mx.finder.dll),FindPack,%params)
-  var %ms = $calc($ticks - %t)
   if ($gettok(%res,1,124) == WAIT) return WAIT
   if ($gettok(%res,1,124) == NO) return DONE
   if ($gettok(%res,1,124) == ERR) {
@@ -4747,7 +4916,12 @@ alias mx.nick.remove {
   }
   var %cid = $mx.net2cid(%net)
   if ((%cid) && (%silent != 1)) {
-    mx.origin.now notice %cid %nick %origin %mx.c1 Your $+ %mx.c2 %rem %mx.c1 pending request(s) were removed. %mx.c3 $+ %mx.cr $+ $mx.logo
+    if (%rem > 0) {
+      mx.origin.now notice %cid %nick %origin %mx.c1 Your $+ %mx.c2 %rem %mx.c1 $+ pending request(s) were removed. %mx.c3 $+ %mx.cr $+ $mx.logo
+    }
+    else {
+      mx.origin.now notice %cid %nick %origin %mx.c1 You have no pending requests to remove. %mx.c3 $+ %mx.cr $+ $mx.logo
+    }
   }
 }
 
@@ -4800,7 +4974,7 @@ alias mx.nick.stats {
   if (%mx.nocolor == 1) %msg = $strip(%msg,burc)
   mx.origin.now msg %cid %nick %origin %msg
   mx.origin.find.send msg %cid %nick %origin %mx.c1 Free Slots: %mx.c2 $+ %free $+ / $+ %max %mx.c3 $+ %mx.cr $+ %mx.c1 Requests In Queue: %mx.c2 $+ %queue %mx.c3 $+ %mx.cr $+ %mx.c1 Total Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Next Slot: %mx.c2 $+ %next %mx.c3 $+ %mx.cr $+ %mx.c1 Allowed: %mx.c2 $+ %allowed %mx.c3 $+ %mx.cr $+ %mx.c1 Find/Locator: %mx.c2 $+ %find %mx.c3 $+ %mx.cr $+ %mx.c1 Mode: %mx.c2 $+ %modeText %mx.nc
-  mx.origin.find.send msg %cid %nick %origin %mx.c1 Masterlist: %mx.c2 $+ $bmx(%masterFiles) %mx.c1 Files %mx.c3 $+ / %mx.c2 $+ $bmx(%masterFolders) %mx.c1 Folders %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%totalSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Files Sent: %mx.c2 $+ $bmx(%filesSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Folders Sent: %mx.c2 $+ $bmx(%foldersSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Data Sent: %mx.c2 $+ $mx.bytes(%totalBytes) %mx.c3 $+ %mx.cr $+ %mx.c1 Average Speed: %mx.c2 $+ $mx.speed(%average) %mx.c3 $+ %mx.cr $+ %mx.c1 Largest Transfer: %mx.c2 $+ $mx.bytes(%largest) %mx.c3 $+ %mx.cr $+ %mx.c1 Fastest Nick: %mx.c2 $+ %fastestText %mx.nc
+  mx.origin.find.send msg %cid %nick %origin %mx.c1 Masterlist: %mx.c2 $+ $bmx(%masterFiles) %mx.c1 Files %mx.c3 $+ / %mx.c2 $+ $bmx(%masterFolders) %mx.c1 Folders %mx.c3 $+ %mx.cr $+ %mx.c1 Total Sent: %mx.c2 $+ $bmx(%totalSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Files Sent: %mx.c2 $+ $bmx(%filesSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Folders Sent: %mx.c2 $+ $bmx(%foldersSent) %mx.c3 $+ %mx.cr $+ %mx.c1 Data Sent: %mx.c2 $+ $mx.bytes(%totalBytes) %mx.c3 $+ %mx.cr $+ %mx.c1 Average Speed: %mx.c2 $+ $mx.speed(%average) %mx.c3 $+ %mx.cr $+ %mx.c1 Largest Transfer: %mx.c2 $+ $mx.bytes(%largest) %mx.c3 $+ %mx.cr $+ %mx.c1 Fastest Nick: %mx.c2 $+ %fastestText %mx.nc
 }
 
 alias mx.nick.fullstats {
@@ -4906,22 +5080,22 @@ on *:TEXT:!*:*:{
     inc %mx.rarrequested
     if ((%folderslist == -) || (%mx.list != 1)) {
       if (%mode != ctcp) {
-        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 Folder requests are not enabled for this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
+        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 Folder requests are not enabled for this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
       }
       mx.main.stats.refresh
       return
     }
     if (!$isfile(%mx.dll)) {
-      mx.dbg %mx.c2 Error: %mx.c1 Folder lookup DLL missing: %mx.c2 %mx.dll %mx.nc
+      mx.dbg %mx.c2 Error: $+ %mx.c1 Folder lookup DLL missing: %mx.c2 %mx.dll %mx.nc
       if (%mode != ctcp) {
-        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 Folder lookup service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 Folder lookup service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
       }
       mx.main.stats.refresh
       return
     }
     if (!$isfile(%mx.masterlist)) {
       if (%mode != ctcp) {
-        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 Folder masterlist is not available. %mx.c3 $+ %mx.cr $+ $mx.logo
+        mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 Folder masterlist is not available. %mx.c3 $+ %mx.cr $+ $mx.logo
       }
       mx.main.stats.refresh
       return
@@ -4937,7 +5111,7 @@ on *:TEXT:!*:*:{
       return
     }
     if (%mode != ctcp) {
-      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 Folder not found in the list assigned to this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 Folder not found in the list assigned to this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     mx.main.stats.refresh
     return
@@ -4945,27 +5119,26 @@ on *:TEXT:!*:*:{
   inc %mx.stats.file.requested
   if ((%fileslist == -) || (%mx.files.list != 1)) {
     if (%mode != ctcp) {
-      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 File requests are not enabled for this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 File requests are not enabled for this channel. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     mx.main.stats.refresh
     return
   }
   if (!$isfile(%mx.finder.dll)) {
-    mx.dlist %mx.c2 Error: %mx.c1 Files lookup DLL missing: %mx.c2 %mx.finder.dll %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 Files lookup DLL missing: %mx.c2 %mx.finder.dll %mx.nc
     if (%mode != ctcp) {
-      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 Files lookup service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 Files lookup service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     mx.main.stats.refresh
     return
   }
   if (!$isfile(%mx.files.masterlist)) {
     if (%mode != ctcp) {
-      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: %mx.c1 File masterlist is not available. %mx.c3 $+ %mx.cr $+ $mx.logo
+      mx.origin.send notice %cidR $nick %origin %mx.c2 Error: $+ %mx.c1 File masterlist is not available. %mx.c3 $+ %mx.cr $+ $mx.logo
     }
     mx.main.stats.refresh
     return
   }
-  mx.notfound.debug.context $+($nick,$chr(29),$network,$chr(29),%fileslist,$chr(29),%requestchan,$chr(29),%rawrequest,$chr(29),%req)
   mx.files.lookup.enqueue $+($nick,$chr(29),$network,$chr(29),%mode,$chr(29),%fileslist,$chr(29),ORIGIN=,%origin,$chr(29),%req)
   mx.main.stats.refresh
 }
@@ -5034,8 +5207,10 @@ alias mx.title.dcc {
   var %folders = $iif(%mx.rarsent isnum,%mx.rarsent,0)
   var %folderbytes = $iif(%mx.rartsent isnum,%mx.rartsent,0)
   var %totalbytes = $calc(%filebytes + %folderbytes)
+  var %totalcom = $calc(%mx.stats.file.completed + %mx.rarsent)
   var %state = $iif(%mx.sleeping == 1,sleeping,active)
-  titlebar @mx.dcc.win $chr(62) $chr(91) $+ $upper(%state) $+ $chr(93) $+ $chr(32) $+ $chr(64) DCC Events Monitor > Sent lists: %lists - Sent files: %files $chr(91) $+ $mx.bytes(%filebytes) $+ $chr(93) - Sent folders: %folders $chr(91) $+ $mx.bytes(%folderbytes) $+ $chr(93) - Total: $mx.bytes(%totalbytes)
+  var %unread = $mxc.chat.unread.label
+  titlebar @mx.dcc.win $chr(62) $chr(91) $+ $upper(%state) $+ $chr(93) $+ $chr(32) $+ $chr(64) DCC Events Monitor > Sent lists:  $bmx(%lists) - Sent files:  $bmx(%files) $chr(91) $+ $mx.bytes(%filebytes) $+ $chr(93) - Sent folders: $bmx(%folders) $chr(91) $+ $mx.bytes(%folderbytes) $+ $chr(93) - Total Sent: $bmx(%totalcom) $chr(91) $+ $mx.bytes(%totalbytes) $+ $chr(93) %unread
 }
 
 alias mx.title.debug {
@@ -5047,7 +5222,8 @@ alias mx.title.debug {
   var %speed = $mx.speed($iif(%mx.cps isnum,%mx.cps,0))
   var %compression = $iif(%mx.busy == 1,Running,Idle)
   var %state = $iif(%mx.sleeping == 1,sleeping,active)
-  titlebar @mx.debug.win $chr(62) $chr(91) $+ $upper(%state) $+ $chr(93) $+ $chr(32) $+ $chr(64) Active: %active $+ / $+ %max - Queue: %queue - Speed: %speed - Compression: %compression
+  var %unread = $mxc.chat.unread.label
+  titlebar @mx.debug.win $chr(62) $chr(91) $+ $upper(%state) $+ $chr(93) $+ $chr(32) $+ $chr(64) Active: %active $+ / $+ %max - Queue: %queue - Speed: %speed - Compression: %compression %unread
 }
 
 alias mx.debug.win.set {
@@ -5076,7 +5252,7 @@ alias mx.dlist {
   if (%mx.debug != 1) return
   if (%mx.wdebug == 2) {
     if (!$window(@mx.debug.win)) mx.debug.win.open
-    aline @mx.debug.win %line
+    aline -p @mx.debug.win %line
   }
 }
 
@@ -5090,7 +5266,39 @@ alias mx.dbg {
   }
   if (%mx.wdebug == 2) {
     if (!$window(@mx.debug.win)) mx.debug.win.open
-    aline @mx.debug.win $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
+    aline -p @mx.debug.win $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
+  }
+}
+
+alias mx.dlist {
+  var %mode = -s
+  var %msg = $1-
+  if (($1 == -s) || ($1 == -a)) {
+    %mode = $1
+    %msg = $2-
+  }
+  if (!%msg) return
+  var %line = $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%msg)
+  if (%mode == -a) echo -a %line
+  else echo -s %line
+  if (%mx.debug != 1) return
+  if (%mx.wdebug == 2) {
+    if (!$window(@mx.debug.win)) mx.debug.win.open
+    aline -p @mx.debug.win %line
+  }
+}
+
+alias mx.dbg {
+  if ((%mx.debug != 1) || (%mx.wdebug == 0)) return
+  var %txt = $1-
+  if (%mx.nocolor == 1) %txt = $strip(%txt,burc)
+  if (%mx.wdebug == 1) {
+    echo -s $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
+    return
+  }
+  if (%mx.wdebug == 2) {
+    if (!$window(@mx.debug.win)) mx.debug.win.open
+    aline -p @mx.debug.win $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
   }
 }
 
@@ -5107,7 +5315,7 @@ alias mx.out.view {
   if (%mx.out.origin) %head = $+(%net,$chr(58),%mx.out.origin,$chr(58),%type,$chr(58),%to)
   if (%mx.wdebug == 2) {
     if (!$window(@mx.debug.win)) mx.debug.win.open
-    aline @mx.debug.win $+($time(HH:nn:ss),$chr(32),%head,$chr(32),$chr(62),$chr(32),%txt)
+    aline -p @mx.debug.win $+($time(HH:nn:ss),$chr(32),%head,$chr(32),$chr(62),$chr(32),%txt)
     return
   }
   if (%mx.wdebug == 1) {
@@ -5274,7 +5482,7 @@ alias mx.find.out.start {
 alias -l mx.rar.make.name {
   var %folder = $1-
   if (!%folder) {
-    mx.dbg %mx.c2 Error: %mx.c1 $+ Empty folder received %mx.nc
+    mx.dbg %mx.c2 Error: $+ %mx.c1 $+ Empty folder received %mx.nc
     return
   }
   var %last = $nopath(%folder)
@@ -5759,9 +5967,15 @@ alias -l mx.plb2.run.cfg {
   }
   var %run = %mx.plbase $+ \publiclistbuilder.running
   var %progress = $mx.build.progress.file(folders)
+  var %stage = $mx.build.stage.path(folders)
+  if (!$mx.build.stage.prepare(folders)) {
+    mx.dbg %mx.c2 Error: $+ %mx.c1 Folders build staging directory is unavailable. %mx.nc
+    mx.buildmini.fail
+    return 0
+  }
   if ($isfile(%run)) .remove $qt(%run)
   if ($isfile(%progress)) .remove $qt(%progress)
-  var %args = /config= $+ $qt(%cfg) $chr(32) /publicdir= $+ $qt(%mx.plbase) $chr(32) /master= $+ $qt(%mx.masterlist) $chr(32) /marker= $+ $qt(%run) $chr(32) /progress= $+ $qt(%progress) $chr(32) /trigger= $+ $qt(%trg) $chr(32) /ext= $+ %mx.ext $chr(32) /leaf /size=1
+  var %args = /config= $+ $qt(%cfg) $chr(32) /publicdir= $+ $qt(%stage) $chr(32) /master= $+ $qt($+(%stage,\masterlist.txt)) $chr(32) /marker= $+ $qt(%run) $chr(32) /progress= $+ $qt(%progress) $chr(32) /trigger= $+ $qt(%trg) $chr(32) /ext= $+ %mx.ext $chr(32) /leaf /size=1
   if (%mode == selected) {
     if (!%job) {
       mx.dbg %mx.c2 Error: %mx.c1 $+ Job empty %mx.nc
@@ -5784,11 +5998,7 @@ alias -l mx.plb2.run.cfg {
   set %mx.build.watch 1
   set %mx.build.start $ctime
   set %mx.build.progress %progress
-  if ($isfile($mx.master.ini)) .remove $qt($mx.master.ini)
-  if ($isfile(%mx.masterlist)) .remove $qt(%mx.masterlist)
-  if (%mode == selected) {
-    if ($isfile($mx.list.ini(%job))) .remove $qt($mx.list.ini(%job))
-  }
+  set %mx.build.publishtries 0
   mx.buildmini.open folders %progress
   mx.dlist %mx.c1 Selected trigger: $+ %mx.c2 %trg %mx.nc
   .run -h $qt(%mx.plexe) %args
@@ -5831,7 +6041,7 @@ alias -l mx.build.progress.file {
 alias -l mx.buildmini.dcx.init {
   if (!$dialog(mx.buildmini)) return
   if (!$isfile($mx.main.dcx.path)) {
-    mx.dlist %mx.c2 Error: %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
     return
   }
   mx.main.dcx.call Mark mx.buildmini return
@@ -6053,48 +6263,49 @@ alias -l mx.plb2.report.master {
 
 alias mx.plb2.watch {
   var %run = %mx.plbase $+ \publiclistbuilder.running
-  var %mini = $mx.master.ini
   if (!$hget(mx.build.reported)) hmake mx.build.reported 100
-  var %reportedLists = 0, %masterReady = 0, %expected = 0
-  if ((%mx.build.count == 1) && (%mx.build.name)) {
-    mx.plb2.report.list %mx.build.name
-    if ($hget(mx.build.reported,%mx.build.name)) inc %reportedLists
-    set %expected 1
+  var %status = $lower($readini(%mx.build.progress,Progress,status))
+  if (($isfile(%run)) || (($calc($ctime - %mx.build.start) < 5) && (%status != completed))) {
+    mx.buildmini.update
+    return
   }
-  elseif ((%mx.build.mode == all) && ($isfile(%mx.plnames))) {
-    %expected = $lines(%mx.plnames)
-    var %i = 1
-    while (%i <= %expected) {
-      var %pl = $strip($read(%mx.plnames,n,%i),burc)
-      if (%pl) {
-        mx.plb2.report.list %pl
-        if ($hget(mx.build.reported,%pl)) inc %reportedLists
-      }
-      inc %i
-    }
-  }
-  if ($isfile(%mini)) {
-    mx.plb2.report.master
-    if ($hget(mx.build.reported,masterlist)) set %masterReady 1
-  }
-  if ((%reportedLists < %expected) || (!%masterReady)) {
-    if (($isfile(%run)) || ($calc($ctime - %mx.build.start) < 5)) {
-      mx.buildmini.update
-      return
-    }
+  if (%status != completed) {
     .timerPLB2 off
     mx.dbg %mx.c2 Error: $+ %mx.c1 PublicListBuilder.exe ended without valid completion data. %mx.nc
     mx.buildmini.fail
+    mx.build.stage.clean folders
+    if ($isfile(%mx.build.progress)) .remove $qt(%mx.build.progress)
     return
   }
+  if (!$mx.build.stage.publish(folders)) {
+    inc %mx.build.publishtries
+    if (%mx.build.publishtries < 15) { mx.buildmini.update | return }
+    .timerPLB2 off
+    mx.dbg %mx.c2 Error: $+ %mx.c1 New Folders list publication failed, staged output was kept for inspection. %mx.nc
+    mx.buildmini.fail
+    if ($isfile(%mx.build.progress)) .remove $qt(%mx.build.progress)
+    return
+  }
+  if (%mx.build.mode == selected) mx.plb2.report.list %mx.build.name
+  else {
+    var %i = 1
+    while ($read(%mx.plnames,n,%i)) {
+      mx.plb2.report.list $ifmatch
+      inc %i
+    }
+  }
+  mx.plb2.report.master
   if ($isfile(%run)) .remove $qt(%run)
   .timerPLB2 off
   mx.buildmini.done
+  mx.build.stage.clean folders
+  if ($isfile(%mx.build.progress)) .remove $qt(%mx.build.progress)
   unset %mx.plphase
   unset %mx.build.run
   unset %mx.build.watch
   unset %mx.build.count
   unset %mx.build.name
+  unset %mx.build.publishtries
   mx.assignment.ui.init
 }
 
@@ -6269,6 +6480,7 @@ on *:dialog:mx.rarserver:init:0:{
   mx.main.section general
   unset %mx.ui.pending.edit
   unset %mx.ui.init
+  mxc.chat.unread.refresh
 }
 
 on *:dialog:mx.rarserver:close:*:{
@@ -6590,7 +6802,8 @@ alias mx.msg.adx {
             else {
               %listText = %folderText
             }
-            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
+            ;            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
+            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%dcc.total.sent.files) $+ $chr(32) $+ $+($chr(40),$mx.bytes($int($calc(%dcc.total.sent.bytes * 1024000))),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
             if (%startText != $null) {
               %msg = %mx.c1 $+ %startText $+ $chr(32) $+ %msg
             }
@@ -6638,6 +6851,8 @@ alias mx.start.adx {
 }
 
 on *:DISCONNECT:{
+  unset %mx.connecting. [ $+ [ $cid ] ]
+  unset %mx.netwait. [ $+ [ $cid ] ]
   mx.queue.joinwait.clear
   .timermx_recover 1 3 mx.apply.runtime
 }
@@ -7009,6 +7224,18 @@ on *:sendfail:*: {
   var %nick = $nick
   var %net = $network
   var %name = $nopath($filename)
+  var %cancelId = $hash($lower($mx.path.norm($filename)),32)
+  var %cancelVar = $+(%,mx.build.stage.cancel.,%cancelId)
+  if ($(%cancelVar,2) isnum 1-) {
+    var %remaining = $calc($(%cancelVar,2) - 1)
+    if (%remaining > 0) set -u30 %cancelVar %remaining
+    else unset %mx.build.stage.cancel. [ $+ [ %cancelId ] ]
+    mx.sent.del %nick %net $filename
+    if ($mx.monitor.send.active <= 0) mx.speed.stop
+    mx.slots.update
+    mx.title.refresh
+    return
+  }
   var %size = $send(-1).size
   var %sent = $send(-1).sent
   var %secs = $send(-1).secs
@@ -7228,6 +7455,8 @@ alias -l dmx.queue.picknext {
     var %nick = $mx.queue.nick(%line)
     var %net = $mx.queue.net(%line)
     var %payload = $mx.queue.payload(%line)
+    if ($mx.netwait.active(%net)) { inc %i | continue }
+    if (($mx.build.isrunning) && ($mx.complete.job.is(%payload))) { inc %i | continue }
     if ((%nick) && (%net) && (%payload)) {
       var %cid = $mx.net2cid(%net)
       if (%cid) {
@@ -7254,7 +7483,6 @@ alias -l dmx.queue.picknext {
   }
   else {
     inc %pos
-
     if (%pos > $numtok(%owners,44)) {
       %pos = 1
     }
@@ -7266,6 +7494,8 @@ alias -l dmx.queue.picknext {
     var %nick = $mx.queue.nick(%line)
     var %net = $mx.queue.net(%line)
     var %payload = $mx.queue.payload(%line)
+    if ($mx.netwait.active(%net)) { inc %i | continue }
+    if (($mx.build.isrunning) && ($mx.complete.job.is(%payload))) { inc %i | continue }
     var %owner = $lower($+(%nick,@,%net))
     var %isList = $mx.payload.islist(%payload)
     if (%owner == %chosen) {
@@ -7532,7 +7762,7 @@ alias -l mx.cfg.dir.purge {
   if (!%dir) return
   if (!$isdir(%dir)) return
   if (!$mx.cfg.dir.purge.allowed(%dir)) {
-    mx.dbg %mx.c2 Error: %mx.c1 Purge blocked for unsafe directory: %mx.c2 %dir %mx.c1 - External workdir folder must be named exactly rarwork. %mx.nc
+    mx.dbg %mx.c2 Error: $+ %mx.c1 Purge blocked for unsafe directory: %mx.c2 %dir %mx.c1 - External workdir folder must be named exactly rarwork. %mx.nc
     return
   }
   while ($findfile(%dir,*,0) > 0) {
@@ -7540,7 +7770,7 @@ alias -l mx.cfg.dir.purge {
     if (!%f) break
     .remove $qt(%f)
     if ($isfile(%f)) {
-      mx.dbg %mx.c2 Error: %mx.c1 Purge halted. File locked: %mx.c2 %f %mx.nc
+      mx.dbg %mx.c2 Error: $+ %mx.c1 Purge halted. File locked: %mx.c2 %f %mx.nc
       return
     }
   }
@@ -7558,14 +7788,14 @@ alias -l mx.cfg.dir.purge {
     if (!%deep) break
     .rmdir $qt(%deep)
     if ($isdir(%deep)) {
-      mx.dbg %mx.c2 Error: %mx.c1 Purge halted. Directory could not be removed: %mx.c2 %deep %mx.nc
+      mx.dbg %mx.c2 Error: $+ %mx.c1 Purge halted. Directory could not be removed: %mx.c2 %deep %mx.nc
       return
     }
   }
   if ($isdir(%dir)) {
     .rmdir $qt(%dir)
     if ($isdir(%dir)) {
-      mx.dbg %mx.c2 Error: %mx.c1 Purge halted. Target directory could not be removed: %mx.c2 %dir %mx.nc
+      mx.dbg %mx.c2 Error: $+ %mx.c1 Purge halted. Target directory could not be removed: %mx.c2 %dir %mx.nc
     }
   }
 }
@@ -7580,7 +7810,7 @@ alias -l mx.cfg.dir.purge.allowed {
     if ($lower($nopath(%workdir)) == rarwork) return 1
     return 0
   }
-  var %roots = $+(%mx.plbase,$chr(29),%mx.files.public,$chr(29),%mx.complete.dir)
+  var %roots = $+(%mx.plbase,$chr(29),%mx.files.public,$chr(29),%mx.complete.dir,$chr(29),%mx.publicroot,\mx-stage)
   var %i = 1
   while ($gettok(%roots,%i,29)) {
     var %root = $mx.path.norm($v1)
@@ -7662,7 +7892,6 @@ alias -l mx.queue.consume.line {
 
 alias mx.squeue {
   if (%mx.enabled != 1) return
-  if (%mx.queue.joinwait == 1) return
   if (%mx.sleeping == 1) return
   if ((%mx.busy == 1) || (%mx.complete.active == 1)) {
     dmx.queue.start
@@ -7844,7 +8073,7 @@ alias mx.monitor.open {
 alias -l mx.monitor.dcx.init {
   if (!$dialog(mx.monitor)) return 0
   if (!$isfile($mx.main.dcx.path)) {
-    mx.dlist %mx.c2 Error: %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
     return 0
   }
   mx.main.dcx.call Mark mx.monitor return
@@ -7858,7 +8087,7 @@ alias -l mx.monitor.dcx.init {
   mx.main.dcx.call xdid -f mx.monitor 11 +c default 8 Arial
   mx.main.dcx.call xdid -i mx.monitor 11 +bk $mx.dcx.bg
   mx.main.dcx.call xdid -i mx.monitor 11 +t $mx.dcx.fg
-  mx.main.dcx.call xdid -t mx.monitor 11 +l 0 0 $chr(160) $chr(9) +c 0 $mx.main.pxw(13) P $chr(9) +c 0 $mx.main.pxw(13) $chr(160) $chr(9) +l 0 $mx.main.pxw(38) Nick $chr(9) +l 0 $mx.main.pxw(32) Network $chr(9) +l 0 $mx.main.pxw(72) File $chr(9) +r 0 $mx.main.pxw(29) Size $chr(9) +r 0 $mx.main.pxw(33) Speed $chr(9) +c 0 $mx.main.pxw(19) % $chr(9) +c 0 $mx.main.pxw(26) Time
+  mx.main.dcx.call xdid -t mx.monitor 11 +l 0 0 $chr(160) $chr(9) +c 0 $mx.main.pxw(13) P $chr(9) +c 0 $mx.main.pxw(13) $chr(160) $chr(9) +l 0 $mx.main.pxw(38) Nick $chr(9) +l 0 $mx.main.pxw(32) Network $chr(9) +l 0 $mx.main.pxw(72) File $chr(9) +c 0 $mx.main.pxw(29) Size $chr(9) +c 0 $mx.main.pxw(33) Speed $chr(9) +c 0 $mx.main.pxw(19) % $chr(9) +c 0 $mx.main.pxw(26) Time
   var %icons = $scriptdir $+ dll\mxicons.dll
   mx.main.dcx.call xdid -w mx.monitor 11 +n 0 $qt(%icons)
   mx.main.dcx.call xdid -w mx.monitor 11 +n 1 $qt(%icons)
@@ -8230,6 +8459,9 @@ alias mx.apply.runtime {
     .timerMXRAR off
     .timerMXWATCH off
     .timerMXIDLE off
+    mx.queue.joinwait.clear
+    unset %mx.connecting.*
+    unset %mx.netwait.*
     set %mx.sleeping 0
     mx.compress.close
     if (%mx.busy != 1) { unset %mx.queue.lock | unset %mx.queue.lockts }
@@ -8345,7 +8577,7 @@ alias mx.rar.start2 {
     .mkdir $qt(%jobdir)
     if (!$isdir(%jobdir)) {
       if (%mx.wdebug == 2) {
-        mx.dbg %mx.c2 Error: %mx.c1 Unable to create isolated RAR directory: $+ %mx.c2 %jobdir %mx.nc
+        mx.dbg %mx.c2 Error: $+ %mx.c1 Unable to create isolated RAR directory: $+ %mx.c2 %jobdir %mx.nc
       }
       var %cidJ = $mx.net2cid(%mx.current.net)
       if (%cidJ) {
@@ -8362,7 +8594,7 @@ alias mx.rar.start2 {
     set %mx.current.jobdir %jobdir
     %rar = $+(%jobdir,\,%rarname)
     if (%mx.wdebug == 2) {
-      mx.dbg %mx.c1 RAR already pending or sending. An isolated directory was created. Existing: $+ %mx.c2 %existingRar %mx.c1 New: $+ %mx.c2 %rar %mx.nc
+      mx.dbg %mx.c1 RAR already pending or sending. An isolated directory was created. Existing: $+ %mx.c2 %existingRar %mx.c3 $+ %mx.cr %mx.c1 $+ New: $+ %mx.c2 %rar %mx.nc
     }
   }
   set %mx.current.rarfile %rar
@@ -8389,11 +8621,11 @@ alias mx.rar.start2 {
   }
   if (!$isfile(%mx.winrarui)) {
     var %cidWR = $mx.net2cid(%mx.current.net)
-    mx.dlist %mx.c2 Error: %mx.c1 WinRAR GUI missing: %mx.c2 %mx.winrarui %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 WinRAR GUI missing: %mx.c2 %mx.winrarui %mx.nc
     if (%cidWR) {
       scid %cidWR
       if (%mx.current.mode != ctcp) {
-        mx.out.send notice %cidWR %mx.current.nick %mx.c2 Error: %mx.c1 Folder compression service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+        mx.out.send notice %cidWR %mx.current.nick %mx.c2 Error: $+ %mx.c1 Folder compression service is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
       }
     }
     set %mx.current.error winrar_missing
@@ -8403,11 +8635,11 @@ alias mx.rar.start2 {
   }
   if (!$isfile(%worker)) {
     var %cidW = $mx.net2cid(%mx.current.net)
-    mx.dlist %mx.c2 Error: %mx.c1 RAR worker missing: %mx.c2 %worker %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 RAR worker missing: %mx.c2 %worker %mx.nc
     if (%cidW) {
       scid %cidW
       if (%mx.current.mode != ctcp) {
-        mx.out.send notice %cidW %mx.current.nick %mx.c2 Error: %mx.c1 Folder compression worker is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
+        mx.out.send notice %cidW %mx.current.nick %mx.c2 Error: $+ %mx.c1 Folder compression worker is unavailable. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
       }
     }
     set %mx.current.error worker_missing
@@ -8541,7 +8773,7 @@ alias mx.rar.poll {
           .write -c $qt(%mx.current.cancel) cancel
         }
         if (!$isfile(%mx.current.cancel)) {
-          mx.dbg %mx.c2 Error: %mx.c1 Unable to create the worker cancellation marker. %mx.nc
+          mx.dbg %mx.c2 Error: $+ %mx.c1 Unable to create the worker cancellation marker. %mx.nc
         }
         else {
           mx.dbg %mx.c1 Compression timeout reached. Waiting for mxrar.exe to stop. %mx.nc
@@ -8721,7 +8953,7 @@ dialog mx.compress {
 alias -l mx.compress.dcx.init {
   if (!$dialog(mx.compress)) return
   if (!$isfile($mx.main.dcx.path)) {
-    mx.dlist %mx.c2 Error: %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
+    mx.dlist %mx.c2 Error: $+ %mx.c1 DCX.dll not found: %mx.c2 $mx.main.dcx.path %mx.nc
     return
   }
   unset %mx.compress.lastprogress
@@ -9164,7 +9396,6 @@ alias -l mx.update.version.valid {
   return 1
 }
 
-; Returns 1 when the first version is newer, -1 when older, and 0 when equal.
 alias -l mx.update.version.compare {
   if ((!$mx.update.version.valid($1)) || (!$mx.update.version.valid($2))) return 0
   var %n = $max($numtok($1,46),$numtok($2,46)), %i = 1
@@ -9395,20 +9626,11 @@ alias -l mx.update.busy {
   return 0
 }
 
-/*
-alias -l mx.update.apply {
-  if ($mx.update.busy) {
-    mx.update.ui
-    mx.update.status Update ready but installation is blocked by active compression, list building, or DCC transfer. Try again when the server is idle.
-    return
-  }
-*/
 alias -l mx.update.apply {
   if ($mx.update.busy) {
     mx.update.status Update installation deferred while compression or list building is active.
     return
   }
-
   var %script = %mx.update.script
   var %new = %mx.update.new
   var %backup = $+(%script,.v,$replace(%mx.version,.,),.bak)
@@ -9442,15 +9664,6 @@ alias -l mx.update.apply {
   set %mx.update.from %mx.version
   set %mx.update.to %mx.update.remote.version
   set %mx.version %mx.update.remote.version
-
-  /*
-  set %mx.update.reload 1
-  set %mx.update.running 1
-  unset %mx.update.available
-  .reload -rs $qt(%script)
-  halt
-  }
-  */
   set %mx.update.reload 1
   set %mx.update.running 1
   unset %mx.update.available
@@ -9460,7 +9673,6 @@ alias -l mx.update.apply {
 }
 
 alias mx.update.loaded {
-  ; Only finalize a confirmed installed update
   if (%mx.update.reload != 1) return
   if (!%mx.update.from) return
   if (!%mx.update.to) return
@@ -9525,80 +9737,418 @@ alias -l mx.update.status {
   if ($dialog(mx.rarserver)) did -ra mx.rarserver 709 $1-
 }
 
-;==============================================================================
-; FINDER DEGUN
-;==============================================================================
-alias -l mx.notfound.debug.context {
-  var %data = $1-
-  var %nick = $strip($gettok(%data,1,29))
-  var %net = $strip($gettok(%data,2,29))
-  var %list = $strip($gettok(%data,3,29))
-  var %chan = $strip($gettok(%data,4,29))
-  var %raw = $gettok(%data,5,29)
-  var %clean = $gettok(%data,6-,29)
-  if ((!%nick) || (!%net) || (!%list) || (!%clean)) return
-  var %id = $hash($lower($+(%nick,$chr(29),%net,$chr(29),%list,$chr(29),%clean)),32)
-  hadd -mu120 mx.notfound.ctx %id $+(%chan,$chr(29),%raw)
+;============================
+;CHAT
+;============================
+alias mx.chat {
+  if (!$dialog(mxc.chat)) dialog -md mxc.chat mxc.chat
+  if (!$dialog(mxc.chat)) return
+  dialog -n mxc.chat
+  dialog -e mxc.chat
+  dialog -v mxc.chat
+  mxc.chat.paint
+  mxc.chat.history.show $mxc.chat.net
+  mxc.chat.unread.reset
 }
 
-alias -l mx.notfound.debug.chars {
-  var %data = $1-
-  var %log = $gettok(%data,1,29)
-  var %label = $gettok(%data,2,29)
-  var %text = $gettok(%data,3-,29)
-  if ((!%log) || (!%label)) return
-  var %i = 1
-  var %special
-  while (%i <= $len(%text)) {
-    var %code = $asc($mid(%text,%i,1))
-    if ((%code isnum) && ((%code < 32) || (%code > 126))) {
-      %special = $addtok(%special,$+(%i,:,%code),44)
+alias mxc.chat.unread.label {
+  if (%mxc.chat.unread > 0) return $chr(124) Unread msgs: %mxc.chat.unread
+  return
+}
+
+alias mxc.chat.unread.refresh {
+  var %label = $mxc.chat.unread.label
+  if ($dialog(mx.rarserver)) {
+    if (%label) did -ra mx.rarserver 710 %label
+    else did -r mx.rarserver 710
+  }
+  if ($window(@mx.debug.win)) mx.title.debug
+  if ($window(@mx.dcc.win)) mx.title.dcc
+}
+
+alias mxc.chat.unread.add {
+  if (%mxc.chat.unread !isnum) set %mxc.chat.unread 0
+  inc %mxc.chat.unread
+  mxc.chat.unread.refresh
+}
+
+alias mxc.chat.unread.reset {
+  if (%mxc.chat.unread > 0) {
+    set %mxc.chat.unread 0
+    mxc.chat.unread.refresh
+  }
+}
+
+alias -l mxc.chat.incoming {
+  var %net = $1
+  if (!%net) return 0
+  var %new = $iif($dialog(mxc.chat),0,1)
+  if ((%new) && (%mxc.chat.autoopen != 1)) {
+    if ($appactive != $true) flash -r3
+    return 0
+  }
+  if (%new) {
+    set %mxc.chat.open.net %net
+    dialog -md mxc.chat mxc.chat
+    if (!$dialog(mxc.chat)) { unset %mxc.chat.open.net | return 0 }
+    var %pos = $didwm(mxc.chat,12,%net,1)
+    if (%pos) did -c mxc.chat 12 %pos
+    mxc.chat.paint
+    mxc.chat.history.show %net
+    dialog -n mxc.chat
+    .timermxcview -o 1 1 mxc.chat.view.ready %net
+  }
+  if ($appactive != $true) flash -r3
+  return %new
+}
+
+alias mxc.chat.view.ready {
+  if (!$dialog(mxc.chat)) return
+  if ($lower($mxc.chat.net) != $lower($1)) return
+  mxc.chat.history.show $1
+  var %last = $did(mxc.chat,20).lines
+  if (%last > 0) did -c mxc.chat 20 %last
+  if ($appactive == $true) did -f mxc.chat 30
+}
+
+alias -l mxc.chat.net {
+  if (($dialog(mxc.chat)) && ($did(mxc.chat,12).seltext)) return $did(mxc.chat,12).seltext
+  if (%mxc.chat.open.net) return %mxc.chat.open.net
+  return $network
+}
+
+alias -l mxc.chat.cid {
+  var %net = $1, %i = 1
+  while ($scon(%i)) {
+    if (($scon(%i).status == connected) && ($lower($scon(%i).network) == $lower(%net))) return $scon(%i).cid
+    inc %i
+  }
+}
+
+alias -l mxc.chat.bg {
+  if ($darkmode == $true) return $rgb(32,32,32)
+  return $rgb(255,255,255)
+}
+
+alias -l mxc.chat.fg {
+  if ($darkmode == $true) return $rgb(255,255,255)
+  return $rgb(32,32,32)
+}
+
+alias -l mxc.chat.theme {
+  if (!$dialog(mxc.chat)) return
+  var %dll = $scriptdir $+ dll\mxui.dll
+  if (!$isfile(%dll)) return
+  var %hwnd = $dialog(mxc.chat).hwnd
+  if (!%hwnd) return
+  if ($darkmode != $true) return
+  var %mode = 1
+  noop $dll($qt(%dll),ApplyTheme,$+(%hwnd,$chr(32),%mode))
+}
+
+alias -l mxc.chat.key return $lower($+($1,.,$2))
+alias -l mxc.chat.add {
+  if (!$hget(mxcchat)) hmake mxcchat 100
+  var %key = $mxc.chat.key($1,$2)
+  var %first = $iif($hget(mxcchat,%key),0,1)
+  var %status = $iif(($gettok($hget(mxcchat,%key),2,32) == ready) || ($3 == ready),ready,server)
+  hadd mxcchat %key $ctime %status
+  mxc.chat.paint
+  ;;;;;;;;;;;;;;  if ((%first) && (%status == server)) mxc.chat.hello.one $1 $2
+}
+
+alias -l mxc.chat.online {
+  if (!$hget(mxcchat)) return 0
+  var %key = $mxc.chat.key($1,$2)
+  var %stamp = $gettok($hget(mxcchat,%key),1,32)
+  return $iif((%stamp isnum) && ($calc($ctime - %stamp) <= 7200),1,0)
+}
+
+alias -l mxc.chat.paint {
+  if (!$dialog(mxc.chat)) return
+  var %net = $mxc.chat.net, %i = 1, %n = $scon(0)
+  did -r mxc.chat 12
+  while (%i <= %n) {
+    if ($scon(%i).status == connected) did -a mxc.chat 12 $scon(%i).network
+    inc %i
+  }
+  if ((!%net) && ($did(mxc.chat,12).lines)) %net = $did(mxc.chat,12,1)
+  var %pos = $didwm(mxc.chat,12,%net,1)
+  if (%pos) did -c mxc.chat 12 %pos
+  did -r mxc.chat 21
+  if (%mxc.chat.dcx) {
+    if ($darkmode == $true) {
+      dll $qt(%mxc.chat.dcx) xdid mxc.chat 121 -i +bk $mxc.chat.bg
+      dll $qt(%mxc.chat.dcx) xdid mxc.chat 121 -i +t $mxc.chat.fg
+    }
+    dll $qt(%mxc.chat.dcx) xdid mxc.chat 121 -r
+  }
+  if (!$hget(mxcchat)) return
+  var %shown = 0
+  %i = 1
+  while ($hget(mxcchat,%i).item) {
+    var %item = $hget(mxcchat,%i).item
+    if ($gettok(%item,1,46) == $lower(%net)) {
+      var %nick = $gettok(%item,2-,46)
+      var %entry = $hget(mxcchat,%item)
+      var %flag = $gettok(%entry,2,32)
+      var %label = $+(%nick,$iif(%flag == ready, $chr(32) $+ [Chat], $chr(32) $+ [Server]))
+      inc %shown
+      did -a mxc.chat 21 %label
+      if (%mxc.chat.dcx) {
+        var %fg = $mxc.chat.fg, %bg = $mxc.chat.bg
+        var %row = $+(0 0 +ck 0 0 0 0 0 %fg %bg $chr(160),$chr(9),+ck 0 -1 %fg %bg %label)
+        noop $dll(%mxc.chat.dcx,xdid,mxc.chat 121 -a %row)
+      }
     }
     inc %i
   }
-  if (%special) {
-    write $qt(%log) $+(%label,_NONASCII_POS_CODE:) %special
+}
+
+alias -l mxc.chat.logfile {
+  if (!$1) return
+  return $+($scriptdir,logs\mxc.securechat.,$lower($1),.log)
+}
+
+alias -l mxc.chat.clear {
+  var %net = $lower($mxc.chat.net)
+  if (!%net) return
+  if (!$hget(mxchistory)) hmake mxchistory 300
+  var %num = $hget(mxchistory,$+(%net,.count)), %i = 1
+  while (%i <= %num) {
+    hdel mxchistory $+(%net,.,%i)
+    inc %i
   }
-  else {
-    write $qt(%log) $+(%label,_NONASCII_POS_CODE:) none
+  hadd mxchistory $+(%net,.count) 0
+  did -r mxc.chat 20
+}
+
+alias -l mxc.chat.history.open {
+  var %net = $lower($mxc.chat.net)
+  if (!%net) return
+  var %file = $mxc.chat.logfile(%net)
+  if ($isfile(%file)) run $qt(%file)
+  else echo -a * mxc.SecureChat: No saved history for %net
+}
+
+alias -l mxc.chat.line {
+  var %net = $1, %msg = $+([,$time(HH:nn),],$chr(32),$2-)
+  if (!%net) return
+  if (!$hget(mxchistory)) hmake mxchistory 300
+  var %key = $lower(%net), %num = $calc($hget(mxchistory,$+(%key,.count)) + 1)
+  hadd mxchistory $+(%key,.count) %num
+  hadd mxchistory $+(%key,.,%num) %msg
+  if (%num > 100) hdel mxchistory $+(%key,.,$calc(%num - 100))
+  var %file = $mxc.chat.logfile(%net)
+  if (!$isdir($scriptdir $+ logs)) .mkdir $qt($scriptdir $+ logs)
+  if ($isdir($scriptdir $+ logs)) write -a $qt(%file) %msg
+  if ($dialog(mxc.chat)) && ($lower($mxc.chat.net) == %key) mxc.chat.history.show %net
+}
+
+alias mxc.chat.history.show {
+  if (!$dialog(mxc.chat)) return
+  var %net = $lower($1)
+  if (!%net) return
+  if (!$hget(mxchistory)) { did -r mxc.chat 20 | return }
+  var %end = $hget(mxchistory,$+(%net,.count))
+  if ((%end !isnum) || (%end <= 0)) { did -r mxc.chat 20 | return }
+  var %i = $max(1,$calc(%end - 99)), %first = 1
+  while (%i <= %end) {
+    var %msg = $hget(mxchistory,$+(%net,.,%i))
+    if (%msg != $null) {
+      if (%first) { did -ra mxc.chat 20 %msg | %first = 0 }
+      else did -a mxc.chat 20 $crlf $+ %msg
+    }
+    inc %i
+  }
+  var %last = $did(mxc.chat,20).lines
+  if (%last > 0) did -c mxc.chat 20 %last
+}
+
+alias -l mxc.chat.hello.one {
+  var %net = $1, %nick = $2, %cid = $mxc.chat.cid(%net)
+  if ((!%cid) || (!%nick) || (!$hget(mxcchat))) return
+  var %key = $mxc.chat.key(%net,%nick)
+  if (!$hget(mxcchat,%key)) return
+  if ($gettok($hget(mxcchat,%key),2,32) == ready) return
+  if (!$mxc.chat.online(%net,%nick)) return
+  if ($lower(%nick) == $lower($scid(%cid).me)) return
+  var %cool = $+(%,mxc.chat.hello.,%cid,.,$lower(%nick))
+  if (($eval(%cool,2) isnum) && ($calc($ctime - $eval(%cool,2)) <= 60)) return
+  set %cool $ctime
+  scid -t %cid .msg %nick MXCCHAT1 HELLO 1
+}
+
+alias -l mxc.chat.hello {
+  var %net = $iif($1,$1,$mxc.chat.net)
+  var %cid = $mxc.chat.cid(%net), %i = 1
+  if ((!%cid) || (!$hget(mxcchat))) return
+  while ($hget(mxcchat,%i).item) {
+    var %item = $hget(mxcchat,%i).item
+    var %nick = $gettok(%item,2-,46)
+    if (($gettok(%item,1,46) == $lower(%net)) && ($gettok($hget(mxcchat,%item),2,32) != ready)) {
+      mxc.chat.hello.one %net %nick
+    }
+    inc %i
   }
 }
 
-alias mx.notfound.debug.write {
-  var %data = $1-
-  var %nick = $strip($gettok(%data,1,29))
-  var %net = $strip($gettok(%data,2,29))
-  var %list = $strip($gettok(%data,3,29))
-  var %key = $gettok(%data,4,29)
-  var %status = $gettok(%data,5,29)
-  var %error = $gettok(%data,6-,29)
-  if ((!%nick) || (!%net) || (!%key)) return
-  var %id = $hash($lower($+(%nick,$chr(29),%net,$chr(29),%list,$chr(29),%key)),32)
-  var %ctx = $hget(mx.notfound.ctx,%id)
-  var %chan = $gettok(%ctx,1,29)
-  var %raw = $gettok(%ctx,2-,29)
-  if (!%raw) %raw = %key
-  if (!%chan) %chan = unknown
-  var %dir = %mx.scriptdir $+ logs
-  if (!$isdir(%dir)) .mkdir $qt(%dir)
-  var %log = %dir $+ \mx_notfound_debug.log
-  write $qt(%log) ============================================================
-  write $qt(%log) TIME: $asctime(yyyy-mm-dd HH:nn:ss)
-  write $qt(%log) NICK: %nick
-  write $qt(%log) NETWORK: %net
-  write $qt(%log) CHANNEL: %chan
-  write $qt(%log) FILE_LIST: %list
-  write $qt(%log) RAW_REQUEST: %raw
-  write $qt(%log) CLEAN_REQUEST: %key
-  write $qt(%log) RAW_LENGTH: $len(%raw)
-  write $qt(%log) CLEAN_LENGTH: $len(%key)
-  write $qt(%log) LOOKUP_STATUS: $iif(%status,%status,-)
-  write $qt(%log) LOOKUP_ERROR: $iif(%error,%error,-)
-  write $qt(%log) LOOKUP_PATH: $iif(%mx.lookup.lastpath,%mx.lookup.lastpath,-)
-  write $qt(%log) FINDER_VERSION: $iif(%mx.finder.version,%mx.finder.version,-)
-  write $qt(%log) MASTERLIST: %mx.files.masterlist
-  mx.notfound.debug.chars $+(%log,$chr(29),RAW,$chr(29),%raw)
-  mx.notfound.debug.chars $+(%log,$chr(29),CLEAN,$chr(29),%key)
-  write $qt(%log) ============================================================
-  if ($hget(mx.notfound.ctx,%id)) hdel mx.notfound.ctx %id
+alias -l mxc.chat.discover {
+  var %net = $mxc.chat.net, %cid = $mxc.chat.cid(%net)
+  if (!%cid) return
+  var %channel = $did(mxc.chat,13).text
+  if ($left(%channel,1) != $chr(35)) {
+    mxc.chat.line %net *** Enter a valid channel name.
+    return
+  }
+  if ((%mxc.chat.discover.last isnum) && ($calc($ctime - %mxc.chat.discover.last) < 30)) return
+  set %mxc.chat.discover.last $ctime
+  set $+(%,mxc.chat.discover.,%cid) $ctime
+  scid -t %cid .msg %channel @mx-trigger
+  mxc.chat.line %net *** Discover sent to %channel
 }
+
+alias mxc.chat.tx {
+  var %cid = $1, %nick = $2, %payload = $3
+  if ((%cid !isnum) || (!%nick) || (!%payload)) return
+  if ($scid(%cid).status != connected) return
+  scid -t %cid .msg %nick MXCCHAT1 SAY 1 %payload
+}
+
+alias -l mxc.chat.send {
+  var %net = $mxc.chat.net, %cid = $mxc.chat.cid(%net)
+  if (!%cid) return
+  var %txt = $did(mxc.chat,30).text
+  if (!%txt) return
+  if ($len(%txt) > 170) { mxc.chat.line %net *** Limit: 170 characters. | return }
+  var %payload = $encode(%txt,m), %i = 1, %count = 0
+  while ($hget(mxcchat,%i).item) {
+    var %item = $hget(mxcchat,%i).item, %nick = $gettok(%item,2-,46)
+    if (($gettok(%item,1,46) == $lower(%net)) && ($gettok($hget(mxcchat,%item),2,32) == ready) && ($mxc.chat.online(%net,%nick)) && ($lower(%nick) != $lower($scid(%cid).me)) && (%count < 8)) {
+      inc %count
+      if (%count == 1) mxc.chat.tx %cid %nick %payload
+      else .timer 1 $calc((%count - 1) * 2) mxc.chat.tx %cid %nick %payload
+    }
+    inc %i
+  }
+  if (!%count) { mxc.chat.line %net *** No active chat peers. Use Discover / Refresh. | return }
+  set %mxc.chat.last $ctime
+  did -r mxc.chat 30
+  mxc.chat.line %net $+($scid(%cid).me,:) %txt
+}
+
+on ^*:TEXT:MXCCHAT1 *:?:{
+  haltdef
+  var %cmd = $upper($2), %ver = $3
+  if ((!$nick) || (%ver != 1)) return
+  if (%cmd == HELLO) {
+    mxc.chat.add $network $nick ready
+    .msg $nick MXCCHAT1 READY 1
+    return
+  }
+  if (%cmd == READY) {
+    mxc.chat.add $network $nick ready
+    return
+  }
+  if (%cmd == SAY) {
+    if ((!$4) || (!$hget(mxcchat,$mxc.chat.key($network,$nick)))) return
+    var %raw = $4, %message = $decode(%raw,m)
+    if (($len(%raw) > 300) || (!%message)) return
+    mxc.chat.add $network $nick ready
+    var %wasclosed = $iif($dialog(mxc.chat),0,1)
+    mxc.chat.line $network $+($nick,:) %message
+    if ((%wasclosed) && (%mxc.chat.autoopen != 1)) {
+      mxc.chat.unread.add
+    }
+    noop $mxc.chat.incoming($network)
+    if ((%wasclosed) && ($dialog(mxc.chat))) .timermxcview -o 1 1 mxc.chat.view.ready $network
+    return
+  }
+}
+
+ctcp *:SLOTS:#:{
+  var %match = $iif($regex($1-,/mxrarserver\s+v\d/i),1,0)
+  if (($chan) && (%match)) mxc.chat.add $network $nick server
+}
+
+on *:NOTICE:*:*:{
+  var %msg = $strip($1-)
+  var %match = $iif(($pos(%msg,File or folder trigger:,1) > 0) && ($pos(%msg,mxrarserver v,1) > 0),1,0)
+  if (%match) {
+    var %cid = $mxc.chat.cid($network)
+    var %pending = $eval($+(%,mxc.chat.discover.,%cid),2)
+    mxc.chat.add $network $nick server
+    if ((%cid) && (%pending isnum) && ($calc($ctime - %pending) <= 30)) {
+      mxc.chat.hello.one $network $nick
+    }
+  }
+}
+
+on *:NICK:{
+  if (!$hget(mxcchat)) return
+  var %key = $mxc.chat.key($network,$nick)
+  if ($hget(mxcchat,%key)) { hadd mxcchat $mxc.chat.key($network,$newnick) $hget(mxcchat,%key) | hdel mxcchat %key | mxc.chat.paint }
+}
+on *:QUIT:{
+  if ($hget(mxcchat,$mxc.chat.key($network,$nick))) { hdel mxcchat $mxc.chat.key($network,$nick) | mxc.chat.paint }
+}
+
+dialog mxc.chat {
+  title "mxc.SecureChat v1.0.28 - IRC Group"
+  size -1 -1 340 210
+  option dbu
+  text "Network", 11, 7 8 27 9
+  combo 12, 36 6 95 70, drop
+  edit "#mexico", 13, 137 6 73 12, autohs
+  button "Discover", 14, 214 6 47 12
+  button "Refresh", 15, 266 6 47 12
+  button "History", 17, 237 195 46 12
+  button "Clear", 16, 287 195 46 12
+  check "Auto-open on message", 18, 7 195 107 12
+  edit "", 20, 7 24 246 148, multi rich read vsbar
+  list 21, 258 24 75 148, size
+  edit "", 30, 7 178 273 13, autohs
+  button "Send", 31, 285 178 48 13, default
+  text "History saved per network in logs.", 40, 117 197 115 9
+}
+on *:DIALOG:mxc.chat:init:*:{
+  var %dcx = $scriptdir $+ dll\DCX.dll
+  unset %mxc.chat.dcx
+  if ($isfile(%dcx)) {
+    set %mxc.chat.dcx %dcx
+    dll $qt(%dcx) Mark mxc.chat mxc.chat.callback
+    if ($darkmode == $true) dll $qt(%dcx) xdialog mxc.chat -g +b $mxc.chat.bg
+    dll $qt(%dcx) xdialog mxc.chat -c 121 listview $round($calc(258 * $dbuw),0) $round($calc(24 * $dbuh),0) $round($calc(75 * $dbuw),0) $round($calc(148 * $dbuh),0) report fullrow singlesel noheadersort
+    if ($darkmode == $true) {
+      dll $qt(%dcx) xdid mxc.chat 121 -i +bk $mxc.chat.bg
+      dll $qt(%dcx) xdid mxc.chat 121 -i +t $mxc.chat.fg
+    }
+    dll $qt(%dcx) xdid mxc.chat 121 -t +l 0 0 $chr(160) $chr(9) +l 0 $round($calc(72 * $dbuw),0) Users
+    var %probe = $dll(%dcx,_xdid,mxc.chat 121 num)
+    if (%probe isnum) did -h mxc.chat 21
+    else unset %mxc.chat.dcx
+  }
+  if (%mxc.chat.autoopen == 1) did -c mxc.chat 18
+  mxc.chat.theme
+  mxc.chat.paint
+  mxc.chat.history.show $mxc.chat.net
+  unset %mxc.chat.open.net
+  ;;;;;;;;;;;;;;;;;;;;;  mxc.chat.hello
+  mxc.chat.unread.reset
+}
+
+alias mxc.chat.callback { return }
+on *:DIALOG:mxc.chat:sclick:*:{
+  if ($did == 12) { mxc.chat.paint | mxc.chat.history.show $mxc.chat.net }
+  elseif ($did == 14) mxc.chat.discover
+  elseif ($did == 15) { mxc.chat.theme | mxc.chat.paint | mxc.chat.hello }
+  elseif ($did == 31) mxc.chat.send
+  elseif ($did == 16) mxc.chat.clear
+  elseif ($did == 17) mxc.chat.history.open
+  elseif ($did == 18) {
+    if ($did(mxc.chat,18).state == 1) set %mxc.chat.autoopen 1
+    else set %mxc.chat.autoopen 0
+  }
+}
+
+on *:DIALOG:mxc.chat:close:*:{ unset %mxc.chat.dcx }
