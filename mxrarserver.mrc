@@ -6802,8 +6802,7 @@ alias mx.msg.adx {
             else {
               %listText = %folderText
             }
-            ;            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
-            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%dcc.total.sent.files) $+ $chr(32) $+ $+($chr(40),$mx.bytes($int($calc(%dcc.total.sent.bytes * 1024000))),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
+            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
             if (%startText != $null) {
               %msg = %mx.c1 $+ %startText $+ $chr(32) $+ %msg
             }
