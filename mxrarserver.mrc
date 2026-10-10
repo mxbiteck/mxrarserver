@@ -9667,7 +9667,13 @@ alias -l mx.update.apply {
   set %mx.update.reload 1
   set %mx.update.running 1
   unset %mx.update.available
- if ($dialog(mxc.chat)) dialog -x mxc.chat
+  set %mx.update.reopenmain $iif($dialog(mx.rarserver),1,0)
+  if ($dialog(mx.rarserver)) {
+    mx.ui.commit.pending
+    dialog -x mx.rarserver
+  }
+  if ($dialog(mxc.chat)) dialog -x mxc.chat
+  if ($dialog(mx.monitor)) dialog -x mx.monitor
   .timerMXUPDATELOADED -m 1 2500 mx.update.loaded
   .reload -rs $qt(%script)
   halt
@@ -9690,6 +9696,8 @@ alias mx.update.loaded {
   unset %mx.update.download.path
   unset %mx.update.timeout.socket
   if (%to) set %mx.version %to
+  if (%mx.update.reopenmain == 1) mx.cfg.open
+  unset %mx.update.reopenmain
   if ($dialog(mx.rarserver)) did -ra mx.rarserver 707 mx.rarserver v $+ %mx.version $+  - Stage 2
   mx.update.ui
   mx.update.status mx.rarserver updated successfully: v $+ %from -> v $+ %to $+ .
