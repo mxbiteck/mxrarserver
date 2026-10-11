@@ -5217,6 +5217,8 @@ menu @mx.debug.win {
   reopen:window -c @mx.debug.win | mx.debug.win.open
   -
   close:window -c @mx.debug.win
+  .-
+  .server chat:mx.chat
 }
 
 alias mx.debug.win.open {
@@ -5783,14 +5785,16 @@ menu menubar {
   ..events:mx.wclear -w
   ..-
   ..all windows:mx.wclear
+  .-
+  .server chat:mx.chat
   -
 }
 
 menu nicklist {
   mxrarserver %mx.version
-  .remove pending requests:mx.queue.confirm $1 $network
+  .remove requests:mx.queue.confirm $1 $network
   .-
-  .request selected nick's list:say @ $+ $$1
+  .request nick's list:say @ $+ $$1
   .-
   .configuration:mx.cfg.open
   .monitoring
@@ -5798,6 +5802,8 @@ menu nicklist {
   ..statistics:mx.stats
   ..-
   ..monitor:mx.monitor.open
+  .-
+  .server chat:mx.chat
   -
 }
 
@@ -5860,6 +5866,8 @@ menu channel,status,query {
   ..events:mx.wclear -w
   ..-
   ..all windows:mx.wclear
+  .-
+  .server chat:mx.chat
   -
 }
 
