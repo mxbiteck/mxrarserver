@@ -1,13 +1,22 @@
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; mxrarserver
-; Version: 2.1.6
+; Version: 2.1.7
 ; Developed by Bsk (Undernet)
 ; Release date: 2026-04-28
-; Last update: 2026-10-10
+; Last update: 2026-10-11
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; Features: RAR Timeout, Multi-Network Support, Theme and Colors, DCC Transfer Monitor
 ; Smart Folder Naming, Queue Protection, Startup Cleanup, Worker Cleanup, Window Manager.
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;+ mxrarserver v2.1.7
+;+ Added strict list request blocking during Files and Folders list generation.
+;+ Improved build status notices with scanning stages and progress percentages.
+;+ Prevented list requests from entering the queue during active list builds.
+;+ Improved Complete list request handling and build protection.
+;+ Enhanced private chat functionality and automatic window opening.
+;+ Removed redundant code and improved overall stability.
+;+ Replaced Start Queue on Join with Autojoin for assigned channels across multiple networks.
+
 ;+ mxrarserver v2.1.6
 ;+ Added private chat between mxrarserver servers with message history and logging.
 ;+ Added independent desktop windows with minimization and restoration support.
@@ -133,7 +142,7 @@
 ;+ Fixed mxbsk.dll 
 
 dialog mx.rarserver {
-  title "mxrarserver v2.1.6 - Files and Folders Configuration"
+  title "mxrarserver v2.1.7 - Files and Folders Configuration"
   size -1 -1 330 190
   option dbu
 
@@ -147,13 +156,13 @@ dialog mx.rarserver {
 
   box "Configuration", 199, 81 22 116 101
   check "Enable mxrarserver", 121, 87 31 103 8
-  check "Start queue on join", 122, 87 42 103 8
-  check "Enable channel ads", 123, 87 54 103 8
+  check "Autojoin Assigned Channels (3s)", 122, 87 42 103 8
+  check "Enable Channel Ads", 123, 87 54 103 8
   check "Show DCC events", 151, 87 65 103 8
   check "Send Channels CTCP", 152, 87 77 103 8
   check "Respond to !list", 835, 87 88 103 8
   check "Enable @find / @locator", 831, 87 100 103 8
-  check "Prevent DCC overlap", 117, 87 111 103 8
+  check "Prevent DCC Overlap", 117, 87 111 103 8
 
   box "Trigger", 856, 81 124 116 22
   text "Nickname", 181, 88 134 28 8
@@ -388,7 +397,7 @@ dialog mx.rarserver {
   text "0", 930, 282 136 8 8, right
   text "0 B", 931, 293 136 26 8, right
 
-  text "mxrarserver v2.1.6 - Stage 2", 707, 8 177 127 8
+  text "mxrarserver v2.1.7 - Stage 2", 707, 8 177 127 8
   text "", 710, 77 177 83 8
   text "", 709, 146 177 140 8, right
   button "Close", 109, 289 175 34 12, cancel
@@ -1523,6 +1532,7 @@ alias mx.files.dir.del {
   .rename $qt(%tmp) $qt(%db)
   mx.dbg %mx.c1 Directory $+ %mx.c2 %path %mx.c1 $+ has been removed from file list: $+ %mx.c2 %pl %mx.nc
   mx.files.selchanged
+  if ($dialog(mx.rarserver)) dialog -v mx.rarserver
 }
 
 alias -l mx.files.ext.norm {
@@ -2805,7 +2815,6 @@ alias -l mx.cfg.pl.name.sanitize {
 on *:JOIN:#:{
   if ($nick != $me) return
   mx.start.adx
-  if (%mx.join != 1) return
   if (%mx.enabled != 1) return
   if (!$isfile(%mx.queue)) return
   if ($lines(%mx.queue) <= 0) return
@@ -2819,15 +2828,6 @@ on *:JOIN:#:{
 alias -l mx.queue.joinwait.clear {
   .timerMXQSTART off
   unset %mx.queue.joinwait
-}
-
-alias -l mx.queue.joinwait.end {
-  mx.queue.joinwait.clear
-  if (%mx.join != 1) return
-  if (%mx.enabled != 1) return
-  if (!$isfile(%mx.queue)) return
-  if ($lines(%mx.queue) <= 0) return
-  dmx.queue.start.now
 }
 
 alias -l mx.path.norm {
@@ -3085,7 +3085,7 @@ alias mx.bytes {
 }
 
 alias mx.cfg.vars.defaults {
-  set %mx.version 2.1.6
+  set %mx.version 2.1.7
   if (%mx.update.enabled == $null) set %mx.update.enabled 1
   if (%mx.update.interval == $null) set %mx.update.interval 86400
   if (%mx.update.manifest == $null) set %mx.update.manifest https://raw.githubusercontent.com/mxbiteck/mxrarserver/main/mxrarserver.version
@@ -3211,9 +3211,10 @@ alias -l mx.netwait.active {
   if ($(%k,2) == 1) return 1
   return 0
 }
+
 on *:CONNECT:{
   if (%mx.enabled != 1) return
-  if ((%mx.join == 1) && ($isfile(%mx.queue)) && ($lines(%mx.queue) > 0)) {
+  if (($isfile(%mx.queue)) && ($lines(%mx.queue) > 0)) {
     set -u20 $+($chr(37),mx.connecting.,$cid) 1
     set -u20 $+($chr(37),mx.netwait.,$cid) 1
     if (!$timer(MXRARQ)) dmx.queue.start
@@ -3226,6 +3227,29 @@ on *:CONNECT:{
   mx.dcconf
   mx.out.start
   if ((%mx.ads == 1) && (%mx.chansadv)) mx.start.adx
+  if (%mx.join == 1) .timer $+ $+(MXAUTOJOIN.,$cid) -o 1 3 mx.channels.autojoin $cid
+}
+
+alias -l mx.channels.autojoin {
+  var %cid = $1
+  if (!%cid) return
+  if (%mx.join != 1) return
+  if (%mx.enabled != 1) return
+  if (!$scid(%cid)) return
+  var %oldcid = $cid
+  scid %cid
+  var %net = $network
+  var %i = 1
+  while ($gettok(%mx.chans,%i,44)) {
+    var %entry = $gettok(%mx.chans,%i,44)
+    var %channel = $gettok(%entry,1,58)
+    var %network = $gettok(%entry,2,58)
+    if (($lower(%network) == $lower(%net)) && ($left(%channel,1) == $chr(35))) {
+      if ($me !ison %channel) join %channel
+    }
+    inc %i
+  }
+  if (%oldcid) scid %oldcid
 }
 
 alias mx.dcconf {
@@ -3245,6 +3269,7 @@ on *:LOAD:{
   }
   if (%mx.started) return
   set %mx.started 1
+  if (%mxc.chat.autoopen == $null) set %mxc.chat.autoopen 1
   mx.start
 }
 
@@ -4047,8 +4072,41 @@ alias mx.build.notice {
   var %nick = $2
   var %type = $lower($3)
   if ((!%cid) || (!%nick)) return
-  if (%mx.complete.active == 1) {
-    mx.out.send notice %cid %nick %mx.c1 The Complete list builder is currently busy processing another request. Please wait a moment and try again. %mx.c3 $+ %mx.cr $+ $mx.logo
+  if (%type == list) {
+    var %label = Public list build in progress
+    var %progress, %stage, %percent, %buildtype
+    if ($mx.build.files.running) {
+      %buildtype = Files
+      %label = Building Files list
+      %progress = $mx.build.progress.file(files)
+    }
+    elseif ($mx.build.folders.running) {
+      %buildtype = Folders
+      %label = Building Folders list
+      %progress = $mx.build.progress.file(folders)
+    }
+    if ((%progress) && ($isfile(%progress))) {
+      %stage = $lower($readini(%progress,Progress,stage))
+      if (%stage == masterlist) {
+        %label = Building %buildtype Masterlist
+        var %raw = $readini(%progress,Progress,masterpercent)
+        if (%raw isnum 0-100) %percent = $mx.buildmini.percent(%raw)
+      }
+      elseif (%stage == list) {
+        var %raw = $readini(%progress,Progress,listpercent)
+        if (%raw isnum 1-100) {
+          %label = Building %buildtype list
+          %percent = $mx.buildmini.percent(%raw)
+        }
+        else {
+          %label = Scanning $lower(%buildtype)
+        }
+      }
+    }
+    var %msg = %mx.c1 List request rejected: $+ %mx.c2 %label
+    if (%percent isnum) %msg = %msg $+ $chr(32) $+ $chr(40) $+ %percent $+ $chr(37) $+ $chr(41)
+    %msg = %msg $+ %mx.c1 $+ . Please try again when the build is complete. %mx.c3 $+ %mx.cr $+ $mx.logo
+    mx.out.send notice %cid %nick %msg
     return
   }
   if (%type == files) {
@@ -4059,33 +4117,7 @@ alias mx.build.notice {
     mx.out.send notice %cid %nick %mx.c1 Folders list build in progress. Folder requests are temporarily disabled. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
     return
   }
-  var %buildtype, %progress, %stage, %percent, %label
-  if ($mx.build.files.running) {
-    %buildtype = Files
-    %progress = $mx.build.progress.file(files)
-  }
-  elseif ($mx.build.folders.running) {
-    %buildtype = Folders
-    %progress = $mx.build.progress.file(folders)
-  }
-  if ((%progress) && ($isfile(%progress))) {
-    %stage = $lower($readini(%progress,Progress,stage))
-
-    if (%stage == masterlist) {
-      %label = Masterlist
-      %percent = $mx.buildmini.percent($readini(%progress,Progress,masterpercent))
-    }
-    else {
-      %label = %buildtype
-      %percent = $mx.buildmini.percent($readini(%progress,Progress,listpercent))
-    }
-  }
-  if ((%label) && (%percent isnum)) {
-    mx.out.send notice %cid %nick %mx.c1 Public list build in progress: $+ %mx.c2 %label $chr(32) $+ %percent $+ $chr(37) %mx.c3 $+ %mx.cr $+ %mx.c1 Complete requests are temporarily disabled. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
-  }
-  else {
-    mx.out.send notice %cid %nick %mx.c1 Public list build in progress. Complete requests are temporarily disabled. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
-  }
+  mx.out.send notice %cid %nick %mx.c1 Public list build in progress. Requests are temporarily disabled. Please try again later. %mx.c3 $+ %mx.cr $+ $mx.logo
 }
 
 ;==============================================================================
@@ -4530,8 +4562,8 @@ on *:TEXT:@*:*:{
   else {
     return
   }
-  if ($mx.build.request.blocked(%requesttype)) {
-    if (%mode != ctcp) mx.build.notice %cidR $nick %requesttype
+  if ($mx.build.isrunning) {
+    if (%mode != ctcp) mx.build.notice %cidR $nick list
     return
   }
   if ((%files != -) && (%folders == -) && (%mx.files.list != 1)) {
@@ -5270,38 +5302,6 @@ alias mx.dbg {
   }
 }
 
-alias mx.dlist {
-  var %mode = -s
-  var %msg = $1-
-  if (($1 == -s) || ($1 == -a)) {
-    %mode = $1
-    %msg = $2-
-  }
-  if (!%msg) return
-  var %line = $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%msg)
-  if (%mode == -a) echo -a %line
-  else echo -s %line
-  if (%mx.debug != 1) return
-  if (%mx.wdebug == 2) {
-    if (!$window(@mx.debug.win)) mx.debug.win.open
-    aline -p @mx.debug.win %line
-  }
-}
-
-alias mx.dbg {
-  if ((%mx.debug != 1) || (%mx.wdebug == 0)) return
-  var %txt = $1-
-  if (%mx.nocolor == 1) %txt = $strip(%txt,burc)
-  if (%mx.wdebug == 1) {
-    echo -s $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
-    return
-  }
-  if (%mx.wdebug == 2) {
-    if (!$window(@mx.debug.win)) mx.debug.win.open
-    aline -p @mx.debug.win $+($time(HH:nn:ss),$chr(32),$chr(62),$chr(32),%txt)
-  }
-}
-
 alias mx.out.view {
   if ((%mx.debug != 1) || (%mx.wdebug == 0)) return
   var %type = $1
@@ -5678,6 +5678,7 @@ alias -l mx.cfg.dir.del {
   .rename $qt(%tmp) $qt(%db)
   mx.dbg %mx.c1 Directory $+ %mx.c2 %path %mx.c1 $+ has been removed from list: $+ %mx.c2 %pl %mx.nc 
   mx.cfg.plb2.selchanged
+  if ($dialog(mx.rarserver)) dialog -v mx.rarserver
 }
 
 alias mx.menu.buildlists {
@@ -6802,7 +6803,7 @@ alias mx.msg.adx {
             else {
               %listText = %folderText
             }
-            var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
+              var %msg = %mx.c1 Type: %mx.c2 $+ %triggerText %mx.c1 $+ to get list(s) of %listText %mx.c3 $+ %mx.cr $+ %mx.c1 Slots: %mx.c2 $+ %slots $+ $chr(47) $+ %maxsend %mx.c3 $+ %mx.cr $+ %mx.c1 Queue: %mx.c2 $+ %qcount %mx.c3 $+ %mx.cr $+ %mx.c1 Sent: %mx.c2 $+ $bmx(%sentcount) $+ $chr(32) $+ $+($chr(40),$mx.bytes($calc($iif(%mx.rartsent isnum,%mx.rartsent,0) + $iif(%mx.stats.file.bytes isnum,%mx.stats.file.bytes,0)),1),$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Speed: %mx.c2 $+ %speed %mx.c3 $+ %mx.cr $+ %mx.c1 Updated: %mx.c2 $+ %fecha %mx.c3 $+ %mx.cr $+ %logo
             if (%startText != $null) {
               %msg = %mx.c1 $+ %startText $+ $chr(32) $+ %msg
             }
@@ -8061,6 +8062,7 @@ alias dmx.queue.refresh {
 
 alias mx.monitor.open {
   if ($dialog(mx.monitor)) {
+    dialog -v mx.monitor
     dmx.queue.refresh
     mx.monitor.refresh
     mx.monitor.watch
@@ -9759,6 +9761,31 @@ alias mx.chat {
   mxc.chat.unread.reset
 }
 
+alias -l mxc.chat.channels {
+  if (!$dialog(mxc.chat)) return
+  var %net = $1
+  if (!%net) return
+  var %selected = $did(mxc.chat,13).seltext
+  var %cid = $mxc.chat.cid(%net)
+  var %oldcid = $cid
+  did -r mxc.chat 13
+  if (!%cid) return
+  scid %cid
+  var %i = 1
+  while ($chan(%i)) {
+    did -a mxc.chat 13 $chan(%i)
+    inc %i
+  }
+  if (%oldcid) scid %oldcid
+  if (%selected) {
+    var %pos = $didwm(mxc.chat,13,%selected,1)
+    if (%pos) did -c mxc.chat 13 %pos
+  }
+  if ((!$did(mxc.chat,13).sel) && ($did(mxc.chat,13).lines)) {
+    did -c mxc.chat 13 1
+  }
+}
+
 alias mxc.chat.unread.label {
   if (%mxc.chat.unread > 0) return $chr(124) Unread msgs: %mxc.chat.unread
   return
@@ -9858,11 +9885,9 @@ alias -l mxc.chat.key return $lower($+($1,.,$2))
 alias -l mxc.chat.add {
   if (!$hget(mxcchat)) hmake mxcchat 100
   var %key = $mxc.chat.key($1,$2)
-  var %first = $iif($hget(mxcchat,%key),0,1)
   var %status = $iif(($gettok($hget(mxcchat,%key),2,32) == ready) || ($3 == ready),ready,server)
   hadd mxcchat %key $ctime %status
   mxc.chat.paint
-  if ((%first) && (%status == server)) mxc.chat.hello.one $1 $2
 }
 
 alias -l mxc.chat.online {
@@ -9883,6 +9908,7 @@ alias -l mxc.chat.paint {
   if ((!%net) && ($did(mxc.chat,12).lines)) %net = $did(mxc.chat,12,1)
   var %pos = $didwm(mxc.chat,12,%net,1)
   if (%pos) did -c mxc.chat 12 %pos
+  mxc.chat.channels %net
   did -r mxc.chat 21
   if (%mxc.chat.dcx) {
     if ($darkmode == $true) {
@@ -9982,29 +10008,15 @@ alias -l mxc.chat.hello.one {
   if (!$mxc.chat.online(%net,%nick)) return
   if ($lower(%nick) == $lower($scid(%cid).me)) return
   var %cool = $+(%,mxc.chat.hello.,%cid,.,$lower(%nick))
-  if (($eval(%cool,2) isnum) && ($calc($ctime - $eval(%cool,2)) <= 60)) return
+  if (($eval(%cool,2) isnum) && ($calc($ctime - $eval(%cool,2)) <= 600)) return
   set %cool $ctime
   scid -t %cid .msg %nick MXCCHAT1 HELLO 1
-}
-
-alias -l mxc.chat.hello {
-  var %net = $iif($1,$1,$mxc.chat.net)
-  var %cid = $mxc.chat.cid(%net), %i = 1
-  if ((!%cid) || (!$hget(mxcchat))) return
-  while ($hget(mxcchat,%i).item) {
-    var %item = $hget(mxcchat,%i).item
-    var %nick = $gettok(%item,2-,46)
-    if (($gettok(%item,1,46) == $lower(%net)) && ($gettok($hget(mxcchat,%item),2,32) != ready)) {
-      mxc.chat.hello.one %net %nick
-    }
-    inc %i
-  }
 }
 
 alias -l mxc.chat.discover {
   var %net = $mxc.chat.net, %cid = $mxc.chat.cid(%net)
   if (!%cid) return
-  var %channel = $did(mxc.chat,13).text
+  var %channel = $did(mxc.chat,13).seltext
   if ($left(%channel,1) != $chr(35)) {
     mxc.chat.line %net *** Enter a valid channel name.
     return
@@ -10039,44 +10051,68 @@ alias -l mxc.chat.send {
     }
     inc %i
   }
-  if (!%count) { mxc.chat.line %net *** No active chat peers. Use Discover / Refresh. | return }
+  if (!%count) { mxc.chat.line %net *** No active chat peers. Use Discover. | return }
   set %mxc.chat.last $ctime
   did -r mxc.chat 30
   mxc.chat.line %net $+($scid(%cid).me,:) %txt
 }
 
+on ^*:OPEN:?:MXCCHAT1 *:{
+  mxc.chat.protocol $network $nick $1-
+  halt
+}
+
 on ^*:TEXT:MXCCHAT1 *:?:{
   haltdef
-  var %cmd = $upper($2), %ver = $3
-  if ((!$nick) || (%ver != 1)) return
+  mxc.chat.protocol $network $nick $1-
+}
+
+alias -l mxc.chat.protocol {
+  var %net = $1, %nick = $2, %prefix = $3, %cmd = $upper($4), %ver = $5
+  if ((!%nick) || (%prefix != MXCCHAT1) || (%ver != 1)) return
   if (%cmd == HELLO) {
-    mxc.chat.add $network $nick ready
-    .msg $nick MXCCHAT1 READY 1
+    mxc.chat.add %net %nick ready
+    var %cid = $mxc.chat.cid(%net)
+    if (!%cid) return
+    var %cool = $+(%,mxc.chat.ready.,%cid,.,$lower(%nick))
+    if (($eval(%cool,2) isnum) && ($calc($ctime - $eval(%cool,2)) < 60)) return
+    set %cool $ctime
+    scid -t %cid .msg %nick MXCCHAT1 READY 1
     return
   }
   if (%cmd == READY) {
-    mxc.chat.add $network $nick ready
+    mxc.chat.add %net %nick ready
     return
   }
   if (%cmd == SAY) {
-    if ((!$4) || (!$hget(mxcchat,$mxc.chat.key($network,$nick)))) return
-    var %raw = $4, %message = $decode(%raw,m)
-    if (($len(%raw) > 300) || (!%message)) return
-    mxc.chat.add $network $nick ready
+    var %raw = $6
+    if ((!%raw) || (!$hget(mxcchat,$mxc.chat.key(%net,%nick)))) return
+    if ($len(%raw) > 300) return
+    var %message = $decode(%raw,m)
+    if (!%message) return
+    mxc.chat.add %net %nick ready
     var %wasclosed = $iif($dialog(mxc.chat),0,1)
-    mxc.chat.line $network $+($nick,:) %message
+    mxc.chat.line %net $+(%nick,:) %message
     if ((%wasclosed) && (%mxc.chat.autoopen != 1)) {
       mxc.chat.unread.add
     }
-    noop $mxc.chat.incoming($network)
-    if ((%wasclosed) && ($dialog(mxc.chat))) .timermxcview -o 1 1 mxc.chat.view.ready $network
+    noop $mxc.chat.incoming(%net)
+    if ((%wasclosed) && ($dialog(mxc.chat))) {
+      .timermxcview -o 1 1 mxc.chat.view.ready %net
+    }
     return
   }
 }
 
-ctcp *:SLOTS:#:{
-  var %match = $iif($regex($1-,/mxrarserver\s+v\d/i),1,0)
-  if (($chan) && (%match)) mxc.chat.add $network $nick server
+ctcp *:SLOTS*:#:{
+  var %txt = $strip($1-)
+  if (!$regex(mxslots,%txt,/\bmxrarserver\s+v(\d+(?:\.\d+)+)\b/i)) return
+  var %ver = $regml(mxslots,1)
+  var %status = $iif($mx.update.version.compare(%ver,2.1.6) >= 0,ready,server)
+  mxc.chat.add $network $nick %status
+  if (%mxc.debug == 1) {
+    echo -s MXC SLOTS: $nick - $network - $chan - mxrarserver v $+ %ver
+  }
 }
 
 on *:NOTICE:*:*:{
@@ -10085,8 +10121,13 @@ on *:NOTICE:*:*:{
   if (%match) {
     var %cid = $mxc.chat.cid($network)
     var %pending = $eval($+(%,mxc.chat.discover.,%cid),2)
-    mxc.chat.add $network $nick server
-    if ((%cid) && (%pending isnum) && ($calc($ctime - %pending) <= 30)) {
+    var %status = server, %hasver = 0
+    if ($regex(mxcnotice,%msg,/\bmxrarserver\s+v(\d+(?:\.\d+)+)\b/i)) {
+      %hasver = 1
+      if ($mx.update.version.compare($regml(mxcnotice,1),2.1.6) >= 0) %status = ready
+    }
+    mxc.chat.add $network $nick %status
+    if ((%cid) && (!%hasver) && (%pending isnum) && ($calc($ctime - %pending) <= 30)) {
       mxc.chat.hello.one $network $nick
     }
   }
@@ -10097,6 +10138,7 @@ on *:NICK:{
   var %key = $mxc.chat.key($network,$nick)
   if ($hget(mxcchat,%key)) { hadd mxcchat $mxc.chat.key($network,$newnick) $hget(mxcchat,%key) | hdel mxcchat %key | mxc.chat.paint }
 }
+
 on *:QUIT:{
   if ($hget(mxcchat,$mxc.chat.key($network,$nick))) { hdel mxcchat $mxc.chat.key($network,$nick) | mxc.chat.paint }
 }
@@ -10107,9 +10149,9 @@ dialog mxc.chat {
   option dbu
   text "Network", 11, 7 8 27 9
   combo 12, 36 6 95 70, drop
-  edit "#mexico", 13, 137 6 73 12, autohs
+  combo 13, 137 6 73 70, drop
   button "Discover", 14, 214 6 47 12
-  button "Refresh", 15, 266 6 47 12
+  button "Close", 41, 266 6 47 12, ok
   button "History", 17, 237 195 46 12
   button "Clear", 16, 287 195 46 12
   check "Auto-open on message", 18, 7 195 107 12
@@ -10120,7 +10162,7 @@ dialog mxc.chat {
   text "History saved per network in logs.", 40, 117 197 115 9
 }
 on *:DIALOG:mxc.chat:init:*:{
-  var %dcx = $scriptdir $+ dll\DCX.dll
+  var %dcx = $mx.main.dcx.path
   unset %mxc.chat.dcx
   if ($isfile(%dcx)) {
     set %mxc.chat.dcx %dcx
@@ -10141,7 +10183,6 @@ on *:DIALOG:mxc.chat:init:*:{
   mxc.chat.paint
   mxc.chat.history.show $mxc.chat.net
   unset %mxc.chat.open.net
-  mxc.chat.hello
   mxc.chat.unread.reset
 }
 
@@ -10149,7 +10190,6 @@ alias mxc.chat.callback { return }
 on *:DIALOG:mxc.chat:sclick:*:{
   if ($did == 12) { mxc.chat.paint | mxc.chat.history.show $mxc.chat.net }
   elseif ($did == 14) mxc.chat.discover
-  elseif ($did == 15) { mxc.chat.theme | mxc.chat.paint | mxc.chat.hello }
   elseif ($did == 31) mxc.chat.send
   elseif ($did == 16) mxc.chat.clear
   elseif ($did == 17) mxc.chat.history.open
