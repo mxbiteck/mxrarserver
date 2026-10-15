@@ -1,13 +1,18 @@
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; mxrarserver
-; Version: 2.1.7
+; Version: 2.1.8
 ; Developed by Bsk (Undernet)
 ; Release date: 2026-04-28
-; Last update: 2026-10-11
+; Last update: 2026-10-14
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
 ; Features: RAR Timeout, Multi-Network Support, Theme and Colors, DCC Transfer Monitor
 ; Smart Folder Naming, Queue Protection, Startup Cleanup, Worker Cleanup, Window Manager.
 ;+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+;+ mxrarserver v2.1.8
+;+ Enhanced Files and Folders lookup debugging with color-coded errors, path length checks, and double-space detection.
+;+ Updated minimum mIRC compatibility requirement to v7.81.
+;+ Minor code cleanup and stability improvements.
+
 ;+ mxrarserver v2.1.7
 ;+ Added strict list request blocking during Files and Folders list generation.
 ;+ Improved build status notices with scanning stages and progress percentages.
@@ -142,7 +147,7 @@
 ;+ Fixed mxbsk.dll 
 
 dialog mx.rarserver {
-  title "mxrarserver v2.1.7 - Files and Folders Configuration"
+  title "mxrarserver v2.1.8 - Files and Folders Configuration"
   size -1 -1 330 190
   option dbu
 
@@ -397,7 +402,7 @@ dialog mx.rarserver {
   text "0", 930, 282 136 8 8, right
   text "0 B", 931, 293 136 26 8, right
 
-  text "mxrarserver v2.1.7 - Stage 2", 707, 8 177 127 8
+  text "mxrarserver v2.1.8 - Stage 2", 707, 8 177 127 8
   text "", 710, 77 177 83 8
   text "", 709, 146 177 140 8, right
   button "Close", 109, 289 175 34 12, cancel
@@ -2116,21 +2121,31 @@ alias -l mx.lookup.allowed {
   if (%status != OK) return
   var %path = $mx.path.norm($gettok(%res,2-,124))
   if (!%path) {
+    mx.dbg %mx.c1 Lookup Error: $+ %mx.c2 Empty path %mx.c3 $+ - %mx.c1 $+  Type: $+ %mx.c2 %type %mx.c3 $+ - %mx.c1 $+ List: $+ %mx.c2 %allowlist %mx.c3 $+ - %mx.c1 $+ Request: $+ %mx.c2 %key %mx.nc
     set %mx.lookup.laststatus ERR
     set %mx.lookup.lasterror empty_path
     return
   }
   if ((%type == files) && (!$isfile(%path))) {
+    var %plen = $len(%path)
+    var %double = $iif($pos(%path,$str($chr(32),2),1),Yes,No)
+    mx.dbg %mx.c1 Lookup Error: $+ %mx.c2 File inaccessible %mx.c3 $+ - %mx.c1 $+ Length: $+ %mx.c2 %plen chars %mx.c3 $+ - %mx.c1 $+ Double spaces: $+ %mx.c2 %double %mx.c3 $+ - %mx.c1 $+ Path: $+ %mx.c2 %path %mx.nc
+    if (%plen >= 260) mx.dbg %mx.c1 Lookup Warning: $+ %mx.c2 File path is 260 characters or longer. Possible Windows path limitation. %mx.nc
     set %mx.lookup.laststatus ERR
     set %mx.lookup.lasterror file_missing
     return
   }
   if ((%type == folders) && (!$isdir(%path))) {
+    var %plen = $len(%path)
+    var %double = $iif($pos(%path,$str($chr(32),2),1),Yes,No)
+    mx.dbg %mx.c1 Lookup Error: $+ %mx.c2 Folder inaccessible $+ %mx.c3 - $+ %mx.c1 Length: $+ %mx.c2 %plen chars %mx.c3 $+ - %mx.c1 $+ Double spaces: $+ %mx.c2 %double %mx.c3 $+ - %mx.c1 $+ Path: $+ %mx.c2 %path %mx.nc
+    if (%plen >= 260) mx.dbg %mx.c1 Lookup Warning: $+ %mx.c2 Folder path is 260 characters or longer. Possible Windows path limitation. %mx.nc
     set %mx.lookup.laststatus ERR
     set %mx.lookup.lasterror folder_missing
     return
   }
   if (!$mx.list.path.allowed(%type,%allowlist,%path)) {
+    mx.dbg %mx.c1 Lookup Denied: $+ %mx.c2 Path not allowed $+ %mx.c3 - %mx.c1 $+ Type: $+ %mx.c2 %type $+ %mx.c3 - $+ %mx.c1 List: $+ %mx.c2 %allowlist %mx.c3 $+ - %mx.c1 $+ Path: $+ %mx.c2 %path %mx.nc
     set %mx.lookup.laststatus NO
     set %mx.lookup.lasterror path_not_allowed
     return
@@ -2825,11 +2840,6 @@ on *:JOIN:#:{
   set -u15 $+($chr(37),mx.netwait.,$cid) 1
 }
 
-alias -l mx.queue.joinwait.clear {
-  .timerMXQSTART off
-  unset %mx.queue.joinwait
-}
-
 alias -l mx.path.norm {
   var %p = $strip($remove($1-,$chr(34)))
   if (!%p) return
@@ -3085,7 +3095,7 @@ alias mx.bytes {
 }
 
 alias mx.cfg.vars.defaults {
-  set %mx.version 2.1.7
+  set %mx.version 2.1.8
   if (%mx.update.enabled == $null) set %mx.update.enabled 1
   if (%mx.update.interval == $null) set %mx.update.interval 86400
   if (%mx.update.manifest == $null) set %mx.update.manifest https://raw.githubusercontent.com/mxbiteck/mxrarserver/main/mxrarserver.version
@@ -3262,7 +3272,7 @@ alias mx.dcconf {
 }
 
 on *:LOAD:{
-  if ($version < 7.0) {
+  if ($version < 7.81) {
     echo -a 04Error: mx.rarserver requires mIRC 7.0 or higher.
     .unload -rs $script
     halt
@@ -3473,7 +3483,6 @@ alias mx.restart {
   }
   mx.kill.builder.clean
   .timermx* off
-  mx.queue.joinwait.clear
   .timerPLB2 off
   .timerbuildmini_close off
   .timerTDBG off
@@ -4486,8 +4495,6 @@ on *:TEXT:!list:*:{
   var %msg = %mx.c1 Available list: $+ %mx.c2 %pl $+ %mx.c1 $+($chr(32),$chr(40),%types,$chr(41)) %mx.c3 $+ %mx.cr $+ %mx.c1 Request it with: $+ %mx.c2 @ $+ %mx.trigger %mx.c3 $+ %mx.cr $+ $mx.logo
   %msg = $mx.out.clean(notice,%msg)
   mx.origin.now notice %cidR $nick %origin %msg
-  scid %cidR
-  .notice $nick %msg
 }
 
 on *:TEXT:@*:*:{
@@ -6861,7 +6868,6 @@ alias mx.start.adx {
 on *:DISCONNECT:{
   unset %mx.connecting. [ $+ [ $cid ] ]
   unset %mx.netwait. [ $+ [ $cid ] ]
-  mx.queue.joinwait.clear
   .timermx_recover 1 3 mx.apply.runtime
 }
 
@@ -8337,7 +8343,6 @@ on *:dialog:mx.monitor:sclick:6: dialog -x mx.monitor
 alias mx.start {
   if ((%mx.start.last isnum) && ($calc($ctime - %mx.start.last) < 2)) return
   set %mx.start.last $ctime
-  mx.queue.joinwait.clear
   mx.cfg.vars.defaults
   mx.dcconf
   mx.kill.rar.clean
@@ -8468,7 +8473,6 @@ alias mx.apply.runtime {
     .timerMXRAR off
     .timerMXWATCH off
     .timerMXIDLE off
-    mx.queue.joinwait.clear
     unset %mx.connecting.*
     unset %mx.netwait.*
     set %mx.sleeping 0
@@ -9407,7 +9411,8 @@ alias -l mx.update.version.valid {
 
 alias -l mx.update.version.compare {
   if ((!$mx.update.version.valid($1)) || (!$mx.update.version.valid($2))) return 0
-  var %n = $max($numtok($1,46),$numtok($2,46)), %i = 1
+  var %n = $numtok($1,46), %i = 1
+  if ($numtok($2,46) > %n) var %n = $numtok($2,46)
   while (%i <= %n) {
     var %a = $gettok($1,%i,46), %b = $gettok($2,%i,46)
     if (%a !isnum) var %a = 0
@@ -9994,7 +9999,8 @@ alias mxc.chat.history.show {
   if (!$hget(mxchistory)) { did -r mxc.chat 20 | return }
   var %end = $hget(mxchistory,$+(%net,.count))
   if ((%end !isnum) || (%end <= 0)) { did -r mxc.chat 20 | return }
-  var %i = $max(1,$calc(%end - 99)), %first = 1
+  var %i = $calc(%end - 99), %first = 1
+  if (%i < 1) var %i = 1
   while (%i <= %end) {
     var %msg = $hget(mxchistory,$+(%net,.,%i))
     if (%msg != $null) {
